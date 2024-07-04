@@ -5,6 +5,16 @@ pub struct Label {
     pub commands: Vec<ZplCommand>,
 }
 
+impl core::fmt::Display for Label {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for inner in &self.commands {
+            writeln!(f, "{}", String::from(inner.clone()))?;
+        }
+
+        Ok(())
+    }
+}
+
 impl From<Label> for String {
     fn from(value: Label) -> Self {
         value

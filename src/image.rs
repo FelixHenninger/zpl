@@ -14,6 +14,8 @@ pub fn render_image(path: &str) -> ZplCommand {
         .chunks(img.width() as usize)
         .into_iter()
         .map(|row| {
+            // Take groups of 4 pixels, turning them into a single byte value using the lower 4
+            // bits of each such byte turn it into hex value.
             let output = row
                 .chunks(4)
                 .into_iter()
@@ -25,6 +27,7 @@ pub fn render_image(path: &str) -> ZplCommand {
                 .map(|p: i32| format!("{:x}", p))
                 .collect::<Vec<String>>()
                 .concat();
+            // Append another 0 texel group for somewhat unknown reasons
             format!("{output}0")
         })
         .collect::<Vec<String>>()

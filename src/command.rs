@@ -1,12 +1,16 @@
 #[derive(Clone)]
 pub enum PostPrintAction {
+    /// Present only, let user tear off.
     TearOff,
+    /// Present and cut.
     Cut,
 }
 
 #[derive(Clone)]
 pub enum MediaType {
+    /// Color is in the label, turning dark on heating.
     Direct,
+    /// Color in a separate color strip.
     Transfer,
 }
 
