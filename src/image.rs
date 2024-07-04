@@ -28,7 +28,7 @@ pub fn render_image(path: &str) -> ZplCommand {
                 .collect::<Vec<String>>()
                 .concat();
             // Append another 0 texel group for somewhat unknown reasons
-            format!("{output}0")
+            format!("{output}{}", if output.len() % 2 == 0 { "" } else { "0" })
         })
         .collect::<Vec<String>>()
         // ... missing grouping ...
