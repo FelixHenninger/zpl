@@ -40,9 +40,9 @@ pub enum ZplCommand {
     SetTearOffPosition(isize),
     MoveOrigin(usize, usize),
     PrintQuantity {
-        total: usize,
-        pause_and_cut_after: usize,
-        replicates: usize,
+        total: u32,
+        pause_and_cut_after: u32,
+        replicates: u32,
         cut_only: bool,
     },
     Start,

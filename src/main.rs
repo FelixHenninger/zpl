@@ -1,6 +1,9 @@
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+
+use core::num::NonZeroU32;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 use clap::Parser;
 
@@ -16,11 +19,19 @@ mod label;
 pub struct Args {
     #[arg(default_value = "192.168.1.39:9100")]
     ip: SocketAddr,
+    #[arg(long = "image", default_value = "picture.png")]
+    image: PathBuf,
+    #[arg(long = "repeat", default_value = "1")]
+    repeat_stuff_repeat_stuff: NonZeroU32,
 }
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    let Args { ip } = Args::parse();
+    let Args {
+        ip,
+        image,
+        repeat_stuff_repeat_stuff,
+    } = Args::parse();
 
     let l = Label {
         commands: vec![
@@ -31,7 +42,7 @@ async fn main() -> io::Result<()> {
             ZplCommand::SetMediaType(MediaType::Direct),
             ZplCommand::SetHome(0, 0),
             ZplCommand::SetHalfDensity(false),
-            ZplCommand::SetSpeed{ print: 4, slew: 4 },
+            ZplCommand::SetSpeed { print: 4, slew: 4 },
             ZplCommand::SetDarkness(15),
             ZplCommand::PersistConfig,
             ZplCommand::SetInverted(false),
@@ -39,14 +50,18 @@ async fn main() -> io::Result<()> {
             ZplCommand::End,
             ZplCommand::Start,
             ZplCommand::SetPostPrintAction(PostPrintAction::Cut),
-            ZplCommand::LabelSetup { w: 51, h: 51, dots: 12 },
+            ZplCommand::LabelSetup {
+                w: 51,
+                h: 51,
+                dots: 12,
+            },
             ZplCommand::SetHorizontalShift(0),
             ZplCommand::MoveOrigin(32, 32),
-            render_image("picture.png"),
+            render_image(&image),
             ZplCommand::PrintQuantity {
-                total: 1,
+                total: repeat_stuff_repeat_stuff.get(),
                 pause_and_cut_after: 1,
-                replicates: 1,
+                replicates: repeat_stuff_repeat_stuff.get(),
                 cut_only: true,
             },
             ZplCommand::End,

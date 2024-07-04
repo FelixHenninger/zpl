@@ -1,9 +1,11 @@
+use std::path::Path;
+
 use image::{self, imageops};
 use itertools::Itertools;
 
 use crate::command::ZplCommand;
 
-pub fn render_image(path: &str) -> ZplCommand {
+pub fn render_image(path: &Path) -> ZplCommand {
     let img = image::open(path).expect("Image file not found");
     let mut img = img.grayscale().into_luma8();
 
