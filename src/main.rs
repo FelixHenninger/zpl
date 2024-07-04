@@ -1,5 +1,8 @@
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use std::net::SocketAddr;
+
+use clap::Parser;
 
 use command::{MediaType, PostPrintAction, ZplCommand};
 use image::render_image;
@@ -9,8 +12,16 @@ mod command;
 mod image;
 mod label;
 
+#[derive(Parser)]
+pub struct Args {
+    #[arg(default_value = "192.168.1.39:9100")]
+    ip: SocketAddr,
+}
+
 #[tokio::main]
 async fn main() -> io::Result<()> {
+    let Args { ip } = Args::parse();
+
     let l = Label {
         commands: vec![
             //ZplCommand::Magic,
@@ -42,7 +53,7 @@ async fn main() -> io::Result<()> {
         ],
     };
 
-    let socket = TcpStream::connect("192.168.1.39:9100").await?;
+    let socket = TcpStream::connect(ip).await?;
     let (mut rx, mut tx) = io::split(socket);
 
     // Send data to the printer
