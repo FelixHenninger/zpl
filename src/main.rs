@@ -60,7 +60,7 @@ async fn main() -> io::Result<()> {
             render_image(&image),
             ZplCommand::PrintQuantity {
                 total: repeat_stuff_repeat_stuff.get(),
-                pause_and_cut_after: 1,
+                pause_and_cut_after: repeat_stuff_repeat_stuff.get(),
                 replicates: repeat_stuff_repeat_stuff.get(),
                 cut_only: true,
             },
