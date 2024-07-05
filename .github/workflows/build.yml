@@ -1,0 +1,51 @@
+name: Runner build
+
+on:
+  release:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: windows-latest
+            rust-version: 'stable-msvc'
+            target: x86_64-pc-windows-gnu
+            extension: '.exe'
+          - os: ubuntu-latest
+            rust-version: 'stable'
+            target: x86_64-unknown-linux-gnu
+            extension: ''
+          - os: macos-latest
+            rust-version: 'stable'
+            target: x86_64-apple-darwin
+            extension: ''
+          - os: macos-latest
+            rust-version: 'stable'
+            target: aarch64-apple-darwin
+            extension: ''
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@master
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust-version }}
+        target: ${{ matrix.target }}
+    - uses: swatinem/rust-cache@v2
+      with:
+        key: ${{ matrix.target }}
+    - name: Build
+      run: |
+        cargo build --release --target=${{ matrix.target }}
+    - uses: actions/upload-artifact@v3
+      with:
+        name: zebra-print-${{ matrix.target }}
+        path: ./target/${{ matrix.target }}/release/zpl${{ matrix.extension }}
+        if-no-files-found: error
