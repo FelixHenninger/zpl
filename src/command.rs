@@ -89,7 +89,7 @@ impl From<ZplCommand> for String {
             }
             ZplCommand::SetHorizontalShift(s) => format!("^LS{}", s),
             ZplCommand::SetVerticalShift(s) => format!("^LT{}", s),
-            ZplCommand::SetTearOffPosition(p) => format!("~TA{}", p),
+            ZplCommand::SetTearOffPosition(p) => format!("~TA{:>+04}", p),
             ZplCommand::MoveOrigin(x, y) => format!("^FO{},{}", x, y),
             ZplCommand::PrintQuantity {
                 total,

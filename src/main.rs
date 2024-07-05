@@ -38,7 +38,7 @@ async fn main() -> io::Result<()> {
             //ZplCommand::Magic,
             ZplCommand::Start,
             ZplCommand::SetVerticalShift(12),
-            ZplCommand::SetTearOffPosition(50),
+            ZplCommand::SetTearOffPosition(-20),
             ZplCommand::SetMediaType(MediaType::Direct),
             ZplCommand::SetHome(0, 0),
             ZplCommand::SetHalfDensity(false),
