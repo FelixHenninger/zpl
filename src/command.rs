@@ -23,22 +23,22 @@ pub enum ZplCommand {
     SetEncoding(usize),
     SetInverted(bool),
     SetHalfDensity(bool),
-    SetHome(usize, usize),
+    SetHome(u32, u32),
     SetSpeed {
         print: usize,
         slew: usize,
     },
     SetMediaType(MediaType),
     LabelSetup {
-        w: usize,
-        h: usize,
-        dots: usize,
+        w: u32,
+        h: u32,
+        dots: u32,
     },
     SetPostPrintAction(PostPrintAction),
     SetHorizontalShift(usize),
     SetVerticalShift(isize),
     SetTearOffPosition(isize),
-    MoveOrigin(usize, usize),
+    MoveOrigin(u32, u32),
     PrintQuantity {
         total: u32,
         pause_and_cut_after: u32,
@@ -53,9 +53,7 @@ impl From<ZplCommand> for String {
     fn from(value: ZplCommand) -> Self {
         match value {
             ZplCommand::Raw(s) => s,
-            ZplCommand::Magic => {
-                vec!["CT~~CD,~CC^~CT~", "^XA~TA000~JSN^LT0^MNW"].join("\n")
-            }
+            ZplCommand::Magic => vec!["CT~~CD,~CC^~CT~", "^XA~TA000~JSN^LT0^MNW"].join("\n"),
             // Removed:
             // -
             // - ^PON -> rotate by 180 degrees
