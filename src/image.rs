@@ -1,12 +1,9 @@
-use std::path::Path;
-
 use image::{self, imageops};
 use itertools::Itertools;
 
 use crate::command::ZplCommand;
 
-pub fn render_image(path: &Path) -> ZplCommand {
-    let img = image::open(path).expect("Image file not found");
+pub fn render_image(img: &image::DynamicImage) -> ZplCommand {
     let mut img = img.grayscale().into_luma8();
 
     imageops::dither(&mut img, &imageops::BiLevel);

@@ -14,15 +14,22 @@ use label::Label;
 mod command;
 mod image;
 mod label;
+mod svg;
 
 #[derive(Parser)]
 pub struct Args {
     #[arg(default_value = "192.168.1.39:9100")]
     ip: SocketAddr,
-    #[arg(long = "image", default_value = "picture.png")]
-    image: PathBuf,
+    #[arg(long = "image")]
+    image: Option<PathBuf>,
+    #[arg(long = "svg")]
+    svg: Option<PathBuf>,
     #[arg(long = "repeat", default_value = "1")]
     repeat_stuff_repeat_stuff: NonZeroU32,
+    #[arg(long = "inch-width", default_value = "51")]
+    width: u32,
+    #[arg(long = "inch-height", default_value = "51")]
+    height: u32,
 }
 
 #[tokio::main]
@@ -30,8 +37,28 @@ async fn main() -> io::Result<()> {
     let Args {
         ip,
         image,
+        svg,
         repeat_stuff_repeat_stuff,
+        width,
+        height,
     } = Args::parse();
+
+    let ppi = 12;
+    let homex = 32;
+
+    let pix_width = width * ppi - 2 * homex;
+    let image = if let Some(image) = image {
+        ::image::open(image).expect("Image file not found")
+    } else if let Some(svg) = svg {
+        let svg = tokio::fs::read_to_string(svg)
+            .await
+            .expect("SVG file not found");
+
+        svg::pixmap_svg(svg, pix_width).expect("SVG file invalid")
+    } else {
+        eprintln!("No image source selected");
+        std::process::exit(1);
+    };
 
     let l = Label {
         commands: vec![
@@ -51,12 +78,12 @@ async fn main() -> io::Result<()> {
             ZplCommand::Start,
             ZplCommand::SetPostPrintAction(PostPrintAction::Cut),
             ZplCommand::LabelSetup {
-                w: 51,
-                h: 51,
-                dots: 12,
+                w: width,
+                h: height,
+                dots: ppi,
             },
             ZplCommand::SetHorizontalShift(0),
-            ZplCommand::MoveOrigin(32, 32),
+            ZplCommand::MoveOrigin(homex, homex),
             render_image(&image),
             ZplCommand::PrintQuantity {
                 total: repeat_stuff_repeat_stuff.get(),
