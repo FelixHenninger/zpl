@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use resvg::tiny_skia::{self, Pixmap};
-use resvg::usvg::{Options, Tree};
+use resvg::usvg::{Options, Tree, fontdb};
 
 use quick_error::quick_error;
 
@@ -14,7 +16,11 @@ quick_error! {
 }
 
 pub fn pixmap_svg(svg_data: String, pix_width: u32) -> Result<::image::DynamicImage, Error> {
-    let options = Options::default();
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+
+    let mut options = Options::default();
+    options.fontdb = Arc::new(db);
     let rtree = Tree::from_str(&svg_data, &options).ok().unwrap();
     let pixmap_size = rtree.size();
 
