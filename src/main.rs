@@ -32,6 +32,8 @@ pub struct Args {
     height: u32,
     #[arg(long = "dpmm", default_value = "12")]
     dpmm: u32,
+    #[arg(long = "output-zpl-only", default_value = "false")]
+    output_zpl_only: bool,
 }
 
 #[tokio::main]
@@ -44,6 +46,7 @@ async fn main() -> io::Result<()> {
         width,
         height,
         dpmm,
+        output_zpl_only,
     } = Args::parse();
 
     let homex = 32;
@@ -104,28 +107,36 @@ async fn main() -> io::Result<()> {
         ],
     };
 
-    let socket = TcpStream::connect(ip).await?;
-    let (mut rx, mut tx) = io::split(socket);
+    // Convert to ZPL
+    let zpl_code = String::from(l);
 
-    // Send data to the printer
-    tokio::spawn(async move {
-        for line in String::from(l).lines() {
-            tx.write_all(line.as_bytes()).await?;
+    // Output
+    if output_zpl_only {
+        println!("{}", zpl_code);
+    } else {
+        let socket = TcpStream::connect(ip).await?;
+        let (mut rx, mut tx) = io::split(socket);
+
+        // Send data to the printer
+        tokio::spawn(async move {
+            for line in String::from(zpl_code).lines() {
+                tx.write_all(line.as_bytes()).await?;
+            }
+
+            Ok::<_, io::Error>(())
+        });
+
+        // Wait for incoming data
+        let mut buf = vec![0; 128];
+        loop {
+            let n = rx.read(&mut buf).await?;
+
+            if n == 0 {
+                break;
+            }
+
+            println!("Received: {:?}", &buf[..n]);
         }
-
-        Ok::<_, io::Error>(())
-    });
-
-    // Wait for incoming data
-    let mut buf = vec![0; 128];
-    loop {
-        let n = rx.read(&mut buf).await?;
-
-        if n == 0 {
-            break;
-        }
-
-        println!("Received: {:?}", &buf[..n]);
     }
 
     Ok(())
