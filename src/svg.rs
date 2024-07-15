@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use resvg::tiny_skia::{self, Pixmap};
-use resvg::usvg::{Options, Tree, fontdb};
+use resvg::usvg::{fontdb, Options, Tree};
 
 use quick_error::quick_error;
 
