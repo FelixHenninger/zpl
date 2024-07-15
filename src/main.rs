@@ -30,6 +30,8 @@ pub struct Args {
     width: u32,
     #[arg(long = "mm-height", default_value = "51")]
     height: u32,
+    #[arg(long = "dpmm", default_value = "12")]
+    dpmm: u32,
 }
 
 #[tokio::main]
@@ -41,14 +43,14 @@ async fn main() -> io::Result<()> {
         repeat_stuff_repeat_stuff,
         width,
         height,
+        dpmm,
     } = Args::parse();
 
-    let ppi = 12;
     let homex = 32;
     let homey = 0;
 
-    let pix_width = width * ppi - 2 * homex;
-    let pix_height = height * ppi - 2 * homey;
+    let pix_width = width * dpmm - 2 * homex;
+    let pix_height = height * dpmm - 2 * homey;
     let image = if let Some(image) = image {
         let img = ::image::open(image).expect("Image file not found");
         img.resize_to_fill(
@@ -87,7 +89,7 @@ async fn main() -> io::Result<()> {
             ZplCommand::LabelSetup {
                 w: width,
                 h: height,
-                dots: ppi,
+                dpmm,
             },
             ZplCommand::SetHorizontalShift(0),
             ZplCommand::MoveOrigin(homex, homex),

@@ -32,7 +32,7 @@ pub enum ZplCommand {
     LabelSetup {
         w: u32,
         h: u32,
-        dots: u32,
+        dpmm: u32,
     },
     SetPostPrintAction(PostPrintAction),
     SetHorizontalShift(usize),
@@ -78,8 +78,8 @@ impl From<ZplCommand> for String {
                 format!("^MT{}", t)
             }
             ZplCommand::SetSpeed { print, slew } => format!("^PR{},{}", print, slew),
-            ZplCommand::LabelSetup { w, h, dots } => {
-                format!("^PW{:0>3}\n^LL{:0>4}", w * dots, h * dots)
+            ZplCommand::LabelSetup { w, h, dpmm } => {
+                format!("^PW{:0>3}\n^LL{:0>4}", w * dpmm, h * dpmm)
             }
             ZplCommand::SetPostPrintAction(a) => {
                 let c = match a {
@@ -140,7 +140,7 @@ fn test_setup() {
     let c = ZplCommand::LabelSetup {
         w: 57,
         h: 32,
-        dots: 12,
+        dpmm: 12,
     };
     assert_eq!(String::from(c), "^PW684\n^LL0384");
 }
