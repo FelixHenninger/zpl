@@ -5,6 +5,15 @@ pub struct Label {
     pub commands: Vec<ZplCommand>,
 }
 
+impl Label {
+    pub fn how_many_lines_of_text(&self) -> u32 {
+        self.commands
+            .iter()
+            .map(ZplCommand::how_many_lines_of_text)
+            .sum()
+    }
+}
+
 impl core::fmt::Display for Label {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for inner in &self.commands {
