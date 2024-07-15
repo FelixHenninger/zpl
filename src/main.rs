@@ -24,8 +24,8 @@ pub struct Args {
     image: Option<PathBuf>,
     #[arg(long = "svg")]
     svg: Option<PathBuf>,
-    #[arg(long = "repeat", default_value = "1")]
-    repeat_stuff_repeat_stuff: NonZeroU32,
+    #[arg(long = "copies", default_value = "1")]
+    copies: NonZeroU32,
     #[arg(long = "mm-width", default_value = "51")]
     width: u32,
     #[arg(long = "mm-height", default_value = "51")]
@@ -40,7 +40,7 @@ async fn main() -> io::Result<()> {
         ip,
         image,
         svg,
-        repeat_stuff_repeat_stuff,
+        copies,
         width,
         height,
         dpmm,
@@ -95,9 +95,9 @@ async fn main() -> io::Result<()> {
             ZplCommand::MoveOrigin(homex, homex),
             render_image(&image),
             ZplCommand::PrintQuantity {
-                total: repeat_stuff_repeat_stuff.get(),
-                pause_and_cut_after: repeat_stuff_repeat_stuff.get(),
-                replicates: repeat_stuff_repeat_stuff.get(),
+                total: copies.get(),
+                pause_and_cut_after: copies.get(),
+                replicates: copies.get(),
                 cut_only: true,
             },
             ZplCommand::End,
