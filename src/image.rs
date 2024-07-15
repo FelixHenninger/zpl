@@ -39,5 +39,8 @@ pub fn render_image(img: &image::DynamicImage) -> ZplCommand {
 
     let output = format!("^GFA,{byte_count},{total_field_count},{bytes_per_row},{data}^FS");
 
-    ZplCommand::Raw(output)
+    ZplCommand::Raw {
+        text: output,
+        response_lines: 0,
+    }
 }
