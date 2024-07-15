@@ -45,6 +45,10 @@ pub enum ZplCommand {
         replicates: u32,
         cut_only: bool,
     },
+    RenderQRCode {
+        content: String,
+        zoom: u32,
+    },
     Start,
     End,
 }
@@ -102,6 +106,22 @@ impl From<ZplCommand> for String {
                     replicates,
                     if cut_only { "Y" } else { "N" }
                 )
+            }
+            ZplCommand::RenderQRCode { content, zoom } => {
+                let config = format!(
+                    "^BQ{},{},{},{},{}",
+                    "N",  // Orientation
+                    2,    // Model
+                    zoom, // Magnification (1-100)
+                    "Q",  // Error correction
+                    7     // Mask
+                );
+                let data = format!(
+                    "^FD{}A,{}",
+                    "Q", // Error correction level
+                    content
+                );
+                format!("{config}\n{data}")
             }
             ZplCommand::Start => "^XA".to_string(),
             ZplCommand::End => "^XZ".to_string(),
