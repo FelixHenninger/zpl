@@ -26,9 +26,9 @@ pub struct Args {
     svg: Option<PathBuf>,
     #[arg(long = "repeat", default_value = "1")]
     repeat_stuff_repeat_stuff: NonZeroU32,
-    #[arg(long = "inch-width", default_value = "51")]
+    #[arg(long = "mm-width", default_value = "51")]
     width: u32,
-    #[arg(long = "inch-height", default_value = "51")]
+    #[arg(long = "mm-height", default_value = "51")]
     height: u32,
 }
 
@@ -45,10 +45,17 @@ async fn main() -> io::Result<()> {
 
     let ppi = 12;
     let homex = 32;
+    let homey = 0;
 
     let pix_width = width * ppi - 2 * homex;
+    let pix_height = height * ppi - 2 * homey;
     let image = if let Some(image) = image {
-        ::image::open(image).expect("Image file not found")
+        let img = ::image::open(image).expect("Image file not found");
+        img.resize_to_fill(
+            pix_height,
+            pix_width,
+            ::image::imageops::FilterType::Lanczos3,
+        )
     } else if let Some(svg) = svg {
         let svg = tokio::fs::read_to_string(svg)
             .await
