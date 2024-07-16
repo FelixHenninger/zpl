@@ -15,7 +15,10 @@ quick_error! {
     }
 }
 
-pub fn pixmap_svg(svg_data: String, pix_width: u32) -> Result<::image::DynamicImage, Error> {
+pub fn pixmap_svg(
+    svg_data: String,
+    pix_width: u32,
+) -> Result<::image::DynamicImage, Error> {
     let mut db = fontdb::Database::new();
     db.load_system_fonts();
 

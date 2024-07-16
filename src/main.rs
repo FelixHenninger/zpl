@@ -12,6 +12,7 @@ use image::render_image;
 use label::Label;
 
 mod command;
+mod device;
 mod image;
 mod label;
 mod read;
@@ -46,12 +47,24 @@ async fn main() -> io::Result<()> {
         copies,
         width,
         height,
-        dpmm,
+        mut dpmm,
         output_zpl_only,
     } = Args::parse();
 
     let homex = 32;
     let homey = 0;
+
+    let device_config = if !output_zpl_only {
+        let socket = TcpStream::connect(ip).await?;
+        let config = device::discover(socket).await?;
+        Some(config)
+    } else {
+        None
+    };
+
+    if let Some(cfg) = &device_config {
+        dpmm = cfg.indication.dpmm;
+    }
 
     let pix_width = width * dpmm - 2 * homex;
     let pix_height = height * dpmm - 2 * homey;
@@ -74,10 +87,6 @@ async fn main() -> io::Result<()> {
     };
 
     let l = Label {
-        commands: vec![ZplCommand::HostStatusReturn, ZplCommand::HostIndication],
-    };
-
-    let l2 = Label {
         commands: vec![
             //ZplCommand::Magic,
             ZplCommand::Start,
