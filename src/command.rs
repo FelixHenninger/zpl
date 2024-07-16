@@ -63,6 +63,66 @@ pub enum ZplCommand {
     End,
 }
 
+#[derive(Default, Debug)]
+pub struct DeviceInfo {
+    pub string1: DeviceInfo1,
+    pub string2: DeviceInfo2,
+    pub string3: DeviceInfo3,
+    pub indication: DeviceInfoIndication,
+    pub ram: DeviceInfoRam,
+}
+
+#[derive(Default, Debug)]
+pub struct DeviceInfo1 {
+    pub a_communication: u32,
+    pub b_paper_out: bool,
+    pub c_pause: bool,
+    pub d_label_length: u32,
+    pub e_number_formats: u32,
+    pub f_buffer_full: bool,
+    pub g_communication_diagnostics: bool,
+    pub h_partial_format: bool,
+    pub j_corrupt_ram: bool,
+    pub k_temperature_low: bool,
+    pub l_temperature_high: bool,
+}
+
+#[derive(Default, Debug)]
+pub struct DeviceInfo2 {
+    pub m_settings: u8,
+    pub o_head_up: bool,
+    pub p_ribbon_out: bool,
+    pub q_thermal_transfer_mode: bool,
+    pub r_print_mode: u32,
+    pub s_print_width_mode: u8,
+    pub t_label_waiting: bool,
+    pub u_labels_remaining: u32,
+    pub v_format_printing: bool,
+    pub w_number_graphics_stored: u32,
+}
+
+#[derive(Default, Debug)]
+pub struct DeviceInfo3 {
+    pub x_password: String,
+    pub y_static_ram: bool,
+}
+
+#[derive(Default, Debug)]
+pub struct DeviceInfoRam {
+    pub total: u32,
+    pub maximum_to_user: u64,
+    pub available_to_user: u64,
+}
+
+#[derive(Default, Debug)]
+pub struct DeviceInfoIndication {
+    pub model: String,
+    pub version: String,
+    pub dpmm: u32,
+    /// FIXME: a more specific type?
+    pub memory: String,
+}
+
 impl ZplCommand {
     /// How many lines of text
     pub fn how_many_lines_of_text(&self) -> u32 {
