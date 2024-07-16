@@ -16,7 +16,14 @@ pub enum MediaType {
 
 #[derive(Clone)]
 pub enum ZplCommand {
-    Raw(String),
+    Raw {
+        text: String,
+        /// How many 'lines' / fields of text to read back after the sequence, to purge what the
+        /// print would send from the buffer. If we want to raw-ify commands that send non-text
+        /// delimited fields then we should look into having a proper sequence encoded in this
+        /// field.
+        response_lines: u32,
+    },
     Magic,
     PersistConfig,
     SetDarkness(usize),
@@ -49,14 +56,29 @@ pub enum ZplCommand {
         content: String,
         zoom: u32,
     },
+    HostIndication,
+    HostRamStatus,
+    HostStatusReturn,
     Start,
     End,
+}
+
+impl ZplCommand {
+    /// How many lines of text
+    pub fn how_many_lines_of_text(&self) -> u32 {
+        match self {
+            ZplCommand::HostIndication => 1,
+            ZplCommand::HostRamStatus => 1,
+            ZplCommand::HostStatusReturn => 3,
+            _ => 0,
+        }
+    }
 }
 
 impl From<ZplCommand> for String {
     fn from(value: ZplCommand) -> Self {
         match value {
-            ZplCommand::Raw(s) => s,
+            ZplCommand::Raw { text, .. } => text,
             ZplCommand::Magic => vec!["CT~~CD,~CC^~CT~", "^XA~TA000~JSN^LT0^MNW"].join("\n"),
             // Removed:
             // -
@@ -125,13 +147,20 @@ impl From<ZplCommand> for String {
             }
             ZplCommand::Start => "^XA".to_string(),
             ZplCommand::End => "^XZ".to_string(),
+            ZplCommand::HostIndication => "~HI".to_string(),
+            ZplCommand::HostRamStatus => "~HM".to_string(),
+            ZplCommand::HostStatusReturn => "~HS".to_string(),
         }
     }
 }
 
 #[test]
 fn test_raw() {
-    let c = ZplCommand::Raw("Abc".to_string());
+    let c = ZplCommand::Raw {
+        text: "Abc".to_string(),
+        response_lines: 0,
+    };
+
     assert_eq!(String::from(c), "Abc");
 }
 

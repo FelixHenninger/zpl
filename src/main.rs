@@ -1,4 +1,4 @@
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{self, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 use core::num::NonZeroU32;
@@ -14,6 +14,7 @@ use label::Label;
 mod command;
 mod image;
 mod label;
+mod read;
 mod svg;
 
 #[derive(Parser)]
@@ -73,6 +74,10 @@ async fn main() -> io::Result<()> {
     };
 
     let l = Label {
+        commands: vec![ZplCommand::HostStatusReturn, ZplCommand::HostIndication],
+    };
+
+    let l2 = Label {
         commands: vec![
             //ZplCommand::Magic,
             ZplCommand::Start,
@@ -107,19 +112,19 @@ async fn main() -> io::Result<()> {
         ],
     };
 
-    // Convert to ZPL
-    let zpl_code = String::from(l);
-
-    // Output
     if output_zpl_only {
+        // Convert to ZPL
+        let zpl_code = String::from(l);
         println!("{}", zpl_code);
     } else {
+        // Output
         let socket = TcpStream::connect(ip).await?;
         let (mut rx, mut tx) = io::split(socket);
 
         // Send data to the printer
+        let response_lines = l.how_many_lines_of_text();
         tokio::spawn(async move {
-            for line in String::from(zpl_code).lines() {
+            for line in String::from(l).lines() {
                 tx.write_all(line.as_bytes()).await?;
             }
 
@@ -127,15 +132,10 @@ async fn main() -> io::Result<()> {
         });
 
         // Wait for incoming data
-        let mut buf = vec![0; 128];
-        loop {
-            let n = rx.read(&mut buf).await?;
-
-            if n == 0 {
-                break;
-            }
-
-            println!("Received: {:?}", &buf[..n]);
+        let mut buf = vec![];
+        for _ in 0..response_lines {
+            let line = read::line_with(&mut buf, &mut rx).await?;
+            eprintln!("{}", String::from_utf8_lossy(&line.string));
         }
     }
 
