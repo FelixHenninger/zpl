@@ -39,7 +39,7 @@ pub enum ZplCommand {
     LabelSetup {
         w: u32,
         h: u32,
-        dots: u32,
+        dpmm: u32,
     },
     SetPostPrintAction(PostPrintAction),
     SetHorizontalShift(usize),
@@ -51,6 +51,10 @@ pub enum ZplCommand {
         pause_and_cut_after: u32,
         replicates: u32,
         cut_only: bool,
+    },
+    RenderQRCode {
+        content: String,
+        zoom: u32,
     },
     HostIndication,
     HostRamStatus,
@@ -96,8 +100,8 @@ impl From<ZplCommand> for String {
                 format!("^MT{}", t)
             }
             ZplCommand::SetSpeed { print, slew } => format!("^PR{},{}", print, slew),
-            ZplCommand::LabelSetup { w, h, dots } => {
-                format!("^PW{:0>3}\n^LL{:0>4}", w * dots, h * dots)
+            ZplCommand::LabelSetup { w, h, dpmm } => {
+                format!("^PW{:0>3}\n^LL{:0>4}", w * dpmm, h * dpmm)
             }
             ZplCommand::SetPostPrintAction(a) => {
                 let c = match a {
@@ -125,6 +129,22 @@ impl From<ZplCommand> for String {
                     if cut_only { "Y" } else { "N" }
                 )
             }
+            ZplCommand::RenderQRCode { content, zoom } => {
+                let config = format!(
+                    "^BQ{},{},{},{},{}",
+                    "N",  // Orientation
+                    2,    // Model
+                    zoom, // Magnification (1-100)
+                    "Q",  // Error correction
+                    7     // Mask
+                );
+                let data = format!(
+                    "^FD{}A,{}",
+                    "Q", // Error correction level
+                    content
+                );
+                format!("{config}\n{data}")
+            }
             ZplCommand::Start => "^XA".to_string(),
             ZplCommand::End => "^XZ".to_string(),
             ZplCommand::HostIndication => "~HI".to_string(),
@@ -149,7 +169,7 @@ fn test_setup() {
     let c = ZplCommand::LabelSetup {
         w: 57,
         h: 32,
-        dots: 12,
+        dpmm: 12,
     };
     assert_eq!(String::from(c), "^PW684\n^LL0384");
 }
