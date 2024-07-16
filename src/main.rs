@@ -63,6 +63,7 @@ async fn main() -> io::Result<()> {
     };
 
     if let Some(cfg) = &device_config {
+        eprintln!("Detected {cfg:?}");
         dpmm = cfg.indication.dpmm;
     }
 
@@ -80,7 +81,7 @@ async fn main() -> io::Result<()> {
             .await
             .expect("SVG file not found");
 
-        svg::pixmap_svg(svg, pix_width).expect("SVG file invalid")
+        svg::pixmap_svg(svg, pix_width, pix_height).expect("SVG file invalid")
     } else {
         eprintln!("No image source selected");
         std::process::exit(1);
@@ -145,6 +146,10 @@ async fn main() -> io::Result<()> {
         for _ in 0..response_lines {
             let line = read::line_with(&mut buf, &mut rx).await?;
             eprintln!("{}", String::from_utf8_lossy(&line.string));
+        }
+
+        if response_lines == 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(1_000)).await;
         }
     }
 
