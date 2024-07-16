@@ -25,12 +25,16 @@ pub struct Args {
     image: Option<PathBuf>,
     #[arg(long = "svg")]
     svg: Option<PathBuf>,
-    #[arg(long = "repeat", default_value = "1")]
-    repeat_stuff_repeat_stuff: NonZeroU32,
+    #[arg(long = "copies", default_value = "1")]
+    copies: NonZeroU32,
     #[arg(long = "mm-width", default_value = "51")]
     width: u32,
     #[arg(long = "mm-height", default_value = "51")]
     height: u32,
+    #[arg(long = "dpmm", default_value = "12")]
+    dpmm: u32,
+    #[arg(long = "output-zpl-only", default_value = "false")]
+    output_zpl_only: bool,
 }
 
 #[tokio::main]
@@ -39,17 +43,18 @@ async fn main() -> io::Result<()> {
         ip,
         image,
         svg,
-        repeat_stuff_repeat_stuff,
+        copies,
         width,
         height,
+        dpmm,
+        output_zpl_only,
     } = Args::parse();
 
-    let ppi = 4;
     let homex = 32;
     let homey = 0;
 
-    let pix_width = width * ppi - 2 * homex;
-    let pix_height = height * ppi - 2 * homey;
+    let pix_width = width * dpmm - 2 * homex;
+    let pix_height = height * dpmm - 2 * homey;
     let image = if let Some(image) = image {
         let img = ::image::open(image).expect("Image file not found");
         img.resize_to_fill(
@@ -92,39 +97,46 @@ async fn main() -> io::Result<()> {
             ZplCommand::LabelSetup {
                 w: width,
                 h: height,
-                dots: ppi,
+                dpmm,
             },
             ZplCommand::SetHorizontalShift(0),
             ZplCommand::MoveOrigin(homex, homex),
             render_image(&image),
             ZplCommand::PrintQuantity {
-                total: repeat_stuff_repeat_stuff.get(),
-                pause_and_cut_after: repeat_stuff_repeat_stuff.get(),
-                replicates: repeat_stuff_repeat_stuff.get(),
+                total: copies.get(),
+                pause_and_cut_after: copies.get(),
+                replicates: copies.get(),
                 cut_only: true,
             },
             ZplCommand::End,
         ],
     };
 
-    let socket = TcpStream::connect(ip).await?;
-    let (mut rx, mut tx) = io::split(socket);
+    if output_zpl_only {
+        // Convert to ZPL
+        let zpl_code = String::from(l);
+        println!("{}", zpl_code);
+    } else {
+        // Output
+        let socket = TcpStream::connect(ip).await?;
+        let (mut rx, mut tx) = io::split(socket);
 
-    // Send data to the printer
-    let response = l.how_many_lines_of_text();
-    tokio::spawn(async move {
-        for line in String::from(l).lines() {
-            tx.write_all(line.as_bytes()).await?;
+        // Send data to the printer
+        let response_lines = l.how_many_lines_of_text();
+        tokio::spawn(async move {
+            for line in String::from(l).lines() {
+                tx.write_all(line.as_bytes()).await?;
+            }
+
+            Ok::<_, io::Error>(())
+        });
+
+        // Wait for incoming data
+        let mut buf = vec![];
+        for _ in 0..response_lines {
+            let line = read::line_with(&mut buf, &mut rx).await?;
+            eprintln!("{}", String::from_utf8_lossy(&line.string));
         }
-
-        Ok::<_, io::Error>(())
-    });
-
-    // Wait for incoming data
-    let mut buf = vec![];
-    for _ in 0..response {
-        let line = read::line_with(&mut buf, &mut rx).await?;
-        eprintln!("{}", String::from_utf8_lossy(&line.string));
     }
 
     Ok(())
