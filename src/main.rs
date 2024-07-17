@@ -36,6 +36,8 @@ pub struct Args {
     dpmm: u32,
     #[arg(long = "output-zpl-only", default_value = "false")]
     output_zpl_only: bool,
+    #[arg(long = "output-rendered")]
+    output_rendered: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -49,6 +51,7 @@ async fn main() -> io::Result<()> {
         height,
         mut dpmm,
         output_zpl_only,
+        output_rendered,
     } = Args::parse();
 
     let homex = 32;
@@ -81,7 +84,14 @@ async fn main() -> io::Result<()> {
             .await
             .expect("SVG file not found");
 
-        svg::pixmap_svg(svg, pix_width, pix_height).expect("SVG file invalid")
+        let pix = svg::pixmap_svg(svg, pix_width, pix_height).expect("SVG file invalid");
+
+        if let Some(output_rendered) = output_rendered {
+            pix.save_with_format(output_rendered, ::image::ImageFormat::Png)
+                .unwrap();
+        }
+
+        pix
     } else {
         eprintln!("No image source selected");
         std::process::exit(1);
@@ -149,7 +159,7 @@ async fn main() -> io::Result<()> {
         }
 
         if response_lines == 0 {
-            tokio::time::sleep(std::time::Duration::from_millis(1_000)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(10_000)).await;
         }
     }
 
