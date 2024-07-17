@@ -15,26 +15,23 @@ pub async fn discover(stream: TcpStream) -> Result<command::DeviceInfo, std::io:
         command::ZplCommand::HostRamStatus,
     ];
 
-    const INDICATIONS: u32 = 5;
+    const INDICATIONS: usize = 5;
     let (mut rx, mut tx) = tokio::io::split(stream);
-    let command = crate::label::Label { commands };
-    assert_eq!(command.how_many_lines_of_text(), INDICATIONS);
-
-    let data = String::from(command).into_bytes();
-    let hdl = tokio::spawn(async move { tx.write_all(&data).await });
 
     let mut lines = vec![];
     let mut buf = vec![];
 
-    tokio::try_join!(
-        async move {
-            match hdl.await {
-                Ok(result) => result,
-                Err(join_error) => panic!("{join_error:?}"),
-            }
-        },
-        async {
-            for _ in 0..INDICATIONS {
+    // We send-and-read in sequence. Otherwise the print-back may be unordered.. Oh my.
+    for cmd in commands {
+        let command = crate::label::Label {
+            commands: vec![cmd],
+        };
+
+        let indications = command.how_many_lines_of_text();
+        let data = String::from(command).into_bytes();
+
+        tokio::try_join!(async { tx.write_all(&data).await }, async {
+            for _ in 0..indications {
                 let line = match read::line_with(&mut buf, &mut rx).await {
                     Ok(line) => line,
                     Err(err) => return Err(err),
@@ -44,9 +41,10 @@ pub async fn discover(stream: TcpStream) -> Result<command::DeviceInfo, std::io:
             }
 
             Ok(())
-        }
-    )?;
+        })?;
+    }
 
+    assert_eq!(lines.len(), INDICATIONS);
     let mut info = command::DeviceInfo::default();
 
     {
@@ -126,6 +124,7 @@ fn split_line<const N: usize>(line: &[u8], data: [&mut dyn FromField; N]) {
         return;
     };
 
+    eprintln!("{line}");
     for (st, field) in line.split(',').zip(data) {
         field.fill(st);
     }

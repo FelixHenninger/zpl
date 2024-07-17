@@ -45,7 +45,7 @@ pub fn pixmap_svg(
     resvg::render(
         &rtree,
         // FIXME: multiply by 4.0 makes no sense.
-        tiny_skia::Transform::from_scale(scale, scale).post_translate(x_off, 4.0 * y_off),
+        tiny_skia::Transform::from_scale(scale, scale).post_translate(x_off, y_off),
         &mut pixmap.as_mut(),
     );
 
@@ -55,6 +55,9 @@ pub fn pixmap_svg(
     let image = image::io::Reader::with_format(std::io::Cursor::new(png), image::ImageFormat::Png)
         .decode()
         .unwrap();
+
+    debug_assert_eq!(image.width(), pix_width);
+    debug_assert_eq!(image.height(), pix_height);
 
     Ok(image)
 }
