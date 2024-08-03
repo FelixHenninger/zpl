@@ -1,9 +1,7 @@
 use image::{self, imageops};
 use itertools::Itertools;
 
-use crate::command::ZplCommand;
-
-pub fn render_image(img: &image::DynamicImage) -> ZplCommand {
+pub fn serialize_image(img: &image::DynamicImage) -> String {
     let mut img = img.grayscale().into_luma8();
 
     imageops::dither(&mut img, &imageops::BiLevel);
@@ -37,10 +35,5 @@ pub fn render_image(img: &image::DynamicImage) -> ZplCommand {
     let total_field_count = bytes_per_row * img.height();
     let byte_count = total_field_count * 2;
 
-    let output = format!("^GFA,{byte_count},{total_field_count},{bytes_per_row},{data}^FS");
-
-    ZplCommand::Raw {
-        text: output,
-        response_lines: 0,
-    }
+    format!("^GFA,{byte_count},{total_field_count},{bytes_per_row},{data}^FS")
 }

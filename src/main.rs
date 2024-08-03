@@ -8,7 +8,6 @@ use std::path::PathBuf;
 use clap::Parser;
 
 use command::{MediaType, PostPrintAction, ZplCommand};
-use image::render_image;
 use label::Label;
 
 mod command;
@@ -121,7 +120,9 @@ async fn main() -> io::Result<()> {
             },
             ZplCommand::SetHorizontalShift(0),
             ZplCommand::MoveOrigin(homex, homex),
-            render_image(&image),
+            ZplCommand::Image {
+                image
+            },
             ZplCommand::PrintQuantity {
                 total: copies.get(),
                 pause_and_cut_after: copies.get(),
