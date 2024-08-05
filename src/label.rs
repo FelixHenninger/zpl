@@ -29,7 +29,7 @@ impl From<Label> for String {
         value
             .commands
             .into_iter()
-            .map(|c| String::from(c))
+            .map(String::from)
             .collect::<Vec<String>>()
             .join("\n")
     }
