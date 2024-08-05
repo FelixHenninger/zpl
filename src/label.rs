@@ -39,8 +39,14 @@ impl From<Label> for String {
 fn test_basic() {
     let l = Label {
         commands: vec![
-            ZplCommand::Raw("abc".to_string()),
-            ZplCommand::Raw("def".to_string()),
+            ZplCommand::Raw {
+                text: "abc".to_string(),
+                response_lines: 0,
+            },
+            ZplCommand::Raw {
+                text: "def".to_string(),
+                response_lines: 0,
+            },
         ],
     };
     assert_eq!(String::from(l), "abc\ndef".to_string());
