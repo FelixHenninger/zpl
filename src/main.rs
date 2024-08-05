@@ -53,8 +53,8 @@ async fn main() -> io::Result<()> {
         output_rendered,
     } = Args::parse();
 
-    let homex = 32;
-    let homey = 0;
+    let margin_x = 0;
+    let margin_y = 0;
 
     let device_config = if !output_zpl_only {
         let socket = TcpStream::connect(ip).await?;
@@ -69,8 +69,8 @@ async fn main() -> io::Result<()> {
         dpmm = cfg.indication.dpmm;
     }
 
-    let pix_width = width * dpmm - 2 * homex;
-    let pix_height = height * dpmm - 2 * homey;
+    let pix_width = width * dpmm - 2 * margin_x;
+    let pix_height = height * dpmm - 2 * margin_y;
     let image = if let Some(image) = image {
         let img = ::image::open(image).expect("Image file not found");
         img.resize_to_fill(
@@ -119,10 +119,8 @@ async fn main() -> io::Result<()> {
                 dpmm,
             },
             ZplCommand::SetHorizontalShift(0),
-            ZplCommand::MoveOrigin(homex, homex),
-            ZplCommand::Image {
-                image
-            },
+            ZplCommand::MoveOrigin(margin_x, margin_y),
+            ZplCommand::Image { image },
             ZplCommand::PrintQuantity {
                 total: copies.get(),
                 pause_and_cut_after: copies.get(),
