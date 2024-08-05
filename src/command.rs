@@ -144,7 +144,7 @@ impl From<ZplCommand> for String {
     fn from(value: ZplCommand) -> Self {
         match value {
             ZplCommand::Raw { text, .. } => text,
-            ZplCommand::Magic => vec!["CT~~CD,~CC^~CT~", "^XA~TA000~JSN^LT0^MNW"].join("\n"),
+            ZplCommand::Magic => ["CT~~CD,~CC^~CT~", "^XA~TA000~JSN^LT0^MNW"].join("\n"),
             // Removed:
             // -
             // - ^PON -> rotate by 180 degrees

@@ -47,8 +47,8 @@ pub async fn line_with(
     let start = line.iter().position(|c| *c == b'\x02').map_or(0, |n| n + 1);
     let string = line.split_off(start);
 
-    return Ok(DiagnosticString {
+    Ok(DiagnosticString {
         start: line,
         string,
-    });
+    })
 }
