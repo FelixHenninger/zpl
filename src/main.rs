@@ -18,6 +18,7 @@ mod read;
 mod svg;
 
 #[derive(Parser)]
+#[command(version, about)]
 pub struct Args {
     #[arg(default_value = "192.168.1.39:9100")]
     ip: SocketAddr,
