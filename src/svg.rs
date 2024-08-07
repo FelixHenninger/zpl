@@ -23,8 +23,10 @@ pub fn pixmap_svg(
     let mut db = fontdb::Database::new();
     db.load_system_fonts();
 
-    let mut options = Options::default();
-    options.fontdb = Arc::new(db);
+    let options = Options {
+        fontdb: Arc::new(db),
+        ..Default::default()
+    };
     let rtree = Tree::from_str(&svg_data, &options).ok().unwrap();
     let rtree_size = rtree.size();
 

@@ -3,10 +3,6 @@ use crate::{command, label::Label, read};
 use tokio::{
     self,
     io::{self, AsyncWriteExt},
-    net::{
-        tcp::{ReadHalf, WriteHalf},
-        TcpStream,
-    },
 };
 
 pub struct ZplPrinter {
@@ -166,10 +162,6 @@ trait FromField {
 }
 
 struct Ignore;
-
-pub async fn discover(stream: TcpStream) -> Result<command::DeviceInfo, std::io::Error> {
-    todo!();
-}
 
 fn split_line<const N: usize>(line: &[u8], data: [&mut dyn FromField; N]) {
     let Ok(line) = core::str::from_utf8(line) else {
