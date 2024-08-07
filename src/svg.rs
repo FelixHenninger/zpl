@@ -15,10 +15,10 @@ quick_error! {
     }
 }
 
-pub fn pixmap_svg(
+pub fn render_svg(
     svg_data: String,
-    pix_width: u32,
-    pix_height: u32,
+    canvas_px_width: u32,
+    canvas_px_height: u32,
 ) -> Result<::image::DynamicImage, Error> {
     let mut db = fontdb::Database::new();
     db.load_system_fonts();
@@ -30,24 +30,23 @@ pub fn pixmap_svg(
     let rtree = Tree::from_str(&svg_data, &options).ok().unwrap();
     let rtree_size = rtree.size();
 
-    let mut pixmap = Pixmap::new(pix_width, pix_height).unwrap();
+    let mut pixmap = Pixmap::new(canvas_px_width, canvas_px_height).unwrap();
     pixmap.fill(tiny_skia::Color::from_rgba8(255, 255, 255, 255));
 
-    let scale =
-        (pix_width as f32 / rtree_size.width()).min(pix_height as f32 / rtree_size.height());
+    let scale = (canvas_px_width as f32 / rtree_size.width())
+        .min(canvas_px_height as f32 / rtree_size.height());
 
-    let xsize = rtree_size.width() * scale;
-    let ysize = rtree_size.height() * scale;
+    let image_px_width = rtree_size.width() * scale;
+    let image_px_height = rtree_size.height() * scale;
 
-    let x_off = (pix_width as f32 - xsize) / 2.0;
-    let y_off = (pix_height as f32 - ysize) / 2.0;
-    assert!(x_off >= 0.0);
-    assert!(y_off >= 0.0);
+    let offset_x = (canvas_px_width as f32 - image_px_width) / 2.0;
+    let offset_y = (canvas_px_height as f32 - image_px_height) / 2.0;
+    assert!(offset_x >= 0.0);
+    assert!(offset_y >= 0.0);
 
     resvg::render(
         &rtree,
-        // FIXME: multiply by 4.0 makes no sense.
-        tiny_skia::Transform::from_scale(scale, scale).post_translate(x_off, y_off),
+        tiny_skia::Transform::from_scale(scale, scale).post_translate(offset_x, offset_y),
         &mut pixmap.as_mut(),
     );
 
@@ -58,8 +57,8 @@ pub fn pixmap_svg(
         .decode()
         .unwrap();
 
-    debug_assert_eq!(image.width(), pix_width);
-    debug_assert_eq!(image.height(), pix_height);
+    debug_assert_eq!(image.width(), canvas_px_width);
+    debug_assert_eq!(image.height(), canvas_px_height);
 
     Ok(image)
 }
