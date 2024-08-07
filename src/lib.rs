@@ -118,8 +118,8 @@ pub async fn make_label(args: Args, dpmm_override: Option<u32>) -> anyhow::Resul
 
 pub async fn run(args: Args) -> anyhow::Result<()> {
     let mut device = ZplPrinter::with_address(args.ip).await?;
-    let config = device.discover_device_info().await?;
-    let dpmm = config.indication.dpmm;
+    let config = device.request_device_status().await?;
+    let dpmm = config.identification.dpmm;
 
     let label = make_label(args, Some(dpmm)).await?;
 

@@ -7,7 +7,7 @@ use tokio::{
 
 pub struct ZplPrinter {
     connection: tokio::net::TcpStream,
-    info: Option<command::DeviceInfo>,
+    status: Option<command::HostStatus>,
 }
 
 impl ZplPrinter {
@@ -19,22 +19,25 @@ impl ZplPrinter {
     pub async fn with_socket(socket: tokio::net::TcpStream) -> Self {
         Self {
             connection: socket,
-            info: None,
+            status: None,
         }
     }
 
-    pub async fn discover_device_info(&mut self) -> std::io::Result<&command::DeviceInfo> {
+    pub async fn request_device_status(&mut self) -> std::io::Result<&command::HostStatus> {
         let commands = vec![
-            command::ZplCommand::HostIndication,
-            command::ZplCommand::HostStatusReturn,
-            command::ZplCommand::HostRamStatus,
+            command::ZplCommand::RequestHostIdentification,
+            command::ZplCommand::RequestHostStatus,
+            command::ZplCommand::RequestHostRamStatus,
         ];
 
-        const INDICATIONS: usize = 5;
         let (mut rx, mut tx) = tokio::io::split(&mut self.connection);
 
         let mut lines = vec![];
         let mut buf = vec![];
+        let total_expected_response_lines = commands
+            .iter()
+            .map(command::ZplCommand::expected_response_lines)
+            .sum::<u32>();
 
         // We send-and-read in sequence. Otherwise the print-back may be unordered.. Oh my.
         for cmd in commands {
@@ -42,12 +45,12 @@ impl ZplPrinter {
                 commands: vec![cmd],
             };
 
-            let indications = command.how_many_lines_of_text();
+            let expected_response_lines = command.expected_response_lines();
             let data = String::from(command).into_bytes();
 
             // TODO: Evaluate if these things should really run in parallel?
             tokio::try_join!(async { tx.write_all(&data).await }, async {
-                for _ in 0..indications {
+                for _ in 0..expected_response_lines {
                     let line = match read::line_with(&mut buf, &mut rx).await {
                         Ok(line) => line,
                         Err(err) => return Err(err),
@@ -60,11 +63,11 @@ impl ZplPrinter {
             })?;
         }
 
-        assert_eq!(lines.len(), INDICATIONS);
-        let mut info = command::DeviceInfo::default();
+        assert_eq!(lines.len() as u32, total_expected_response_lines);
+        let mut info = command::HostStatus::default();
 
         {
-            let hi = &mut info.indication;
+            let hi = &mut info.identification;
             split_line(
                 &lines[0],
                 [&mut hi.model, &mut hi.version, &mut hi.dpmm, &mut hi.memory],
@@ -121,7 +124,7 @@ impl ZplPrinter {
         }
 
         {
-            let ram = &mut info.ram;
+            let ram = &mut info.ram_status;
             split_line(
                 &lines[4],
                 [
@@ -132,12 +135,12 @@ impl ZplPrinter {
             );
         }
 
-        Ok(self.info.insert(info))
+        Ok(self.status.insert(info))
     }
 
     pub async fn print(&mut self, label: Label) -> std::io::Result<()> {
         // Send data to the printer
-        let response_lines = label.how_many_lines_of_text();
+        let response_lines = label.expected_response_lines();
         for line in String::from(label).lines() {
             self.connection.write_all(line.as_bytes()).await?;
         }

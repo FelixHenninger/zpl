@@ -6,10 +6,10 @@ pub struct Label {
 }
 
 impl Label {
-    pub fn how_many_lines_of_text(&self) -> u32 {
+    pub fn expected_response_lines(&self) -> u32 {
         self.commands
             .iter()
-            .map(ZplCommand::how_many_lines_of_text)
+            .map(ZplCommand::expected_response_lines)
             .sum()
     }
 }

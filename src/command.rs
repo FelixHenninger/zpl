@@ -59,24 +59,24 @@ pub enum ZplCommand {
         content: String,
         zoom: u32,
     },
-    HostIndication,
-    HostRamStatus,
-    HostStatusReturn,
+    RequestHostIdentification,
+    RequestHostRamStatus,
+    RequestHostStatus,
     Start,
     End,
 }
 
 #[derive(Default, Debug)]
-pub struct DeviceInfo {
-    pub string1: DeviceInfo1,
-    pub string2: DeviceInfo2,
-    pub string3: DeviceInfo3,
-    pub indication: DeviceInfoIndication,
-    pub ram: DeviceInfoRam,
+pub struct HostStatus {
+    pub string1: HostStatus1,
+    pub string2: HostStatus2,
+    pub string3: HostStatus3,
+    pub identification: HostIdentification,
+    pub ram_status: HostRamStatus,
 }
 
 #[derive(Default, Debug)]
-pub struct DeviceInfo1 {
+pub struct HostStatus1 {
     pub a_communication: u32,
     pub b_paper_out: bool,
     pub c_pause: bool,
@@ -91,7 +91,7 @@ pub struct DeviceInfo1 {
 }
 
 #[derive(Default, Debug)]
-pub struct DeviceInfo2 {
+pub struct HostStatus2 {
     pub m_settings: u8,
     pub o_head_up: bool,
     pub p_ribbon_out: bool,
@@ -105,20 +105,20 @@ pub struct DeviceInfo2 {
 }
 
 #[derive(Default, Debug)]
-pub struct DeviceInfo3 {
+pub struct HostStatus3 {
     pub x_password: String,
     pub y_static_ram: bool,
 }
 
 #[derive(Default, Debug)]
-pub struct DeviceInfoRam {
+pub struct HostRamStatus {
     pub total: u32,
     pub maximum_to_user: u64,
     pub available_to_user: u64,
 }
 
 #[derive(Default, Debug)]
-pub struct DeviceInfoIndication {
+pub struct HostIdentification {
     pub model: String,
     pub version: String,
     pub dpmm: u32,
@@ -127,12 +127,13 @@ pub struct DeviceInfoIndication {
 }
 
 impl ZplCommand {
-    /// How many lines of text
-    pub fn how_many_lines_of_text(&self) -> u32 {
+    /// How many lines of data to expect in response to a command
+    pub fn expected_response_lines(&self) -> u32 {
         match self {
-            ZplCommand::HostIndication => 1,
-            ZplCommand::HostRamStatus => 1,
-            ZplCommand::HostStatusReturn => 3,
+            ZplCommand::RequestHostIdentification => 1,
+            ZplCommand::RequestHostRamStatus => 1,
+            ZplCommand::RequestHostStatus => 3,
+            ZplCommand::Raw { response_lines, .. } => *response_lines,
             _ => 0,
         }
     }
@@ -216,9 +217,9 @@ impl From<ZplCommand> for String {
             }
             ZplCommand::Start => "^XA".to_string(),
             ZplCommand::End => "^XZ".to_string(),
-            ZplCommand::HostIndication => "~HI".to_string(),
-            ZplCommand::HostRamStatus => "~HM".to_string(),
-            ZplCommand::HostStatusReturn => "~HS".to_string(),
+            ZplCommand::RequestHostIdentification => "~HI".to_string(),
+            ZplCommand::RequestHostRamStatus => "~HM".to_string(),
+            ZplCommand::RequestHostStatus => "~HS".to_string(),
         }
     }
 }
