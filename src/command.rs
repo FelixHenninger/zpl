@@ -224,6 +224,13 @@ impl From<ZplCommand> for String {
     }
 }
 
+pub fn total_expected_response_lines(commands: &[ZplCommand]) -> u32 {
+    commands
+        .iter()
+        .map(ZplCommand::expected_response_lines)
+        .sum()
+}
+
 #[test]
 fn test_raw() {
     let c = ZplCommand::Raw {
@@ -242,4 +249,34 @@ fn test_setup() {
         dpmm: 12,
     };
     assert_eq!(String::from(c), "^PW684\n^LL0384");
+}
+
+pub struct CommandSequence(pub Vec<ZplCommand>);
+
+impl CommandSequence {
+    pub fn expected_response_lines(&self) -> u32 {
+        total_expected_response_lines(&self.0)
+    }
+}
+
+impl core::fmt::Display for CommandSequence {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for inner in &self.0 {
+            writeln!(f, "{}", String::from(inner.clone()))?;
+        }
+
+        Ok(())
+    }
+}
+
+impl From<CommandSequence> for String {
+    fn from(sequence: CommandSequence) -> Self {
+        let commands = sequence.0;
+
+        commands
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<String>>()
+            .join("\n")
+    }
 }

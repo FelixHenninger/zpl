@@ -1,5 +1,5 @@
 /// Talk to the device.
-use crate::{command, label::Label, read};
+use crate::{command, read};
 use tokio::{
     self,
     io::{self, AsyncWriteExt},
@@ -24,26 +24,21 @@ impl ZplPrinter {
     }
 
     pub async fn request_device_status(&mut self) -> std::io::Result<&command::HostStatus> {
-        let commands = vec![
+        let commands = command::CommandSequence(vec![
             command::ZplCommand::RequestHostIdentification,
             command::ZplCommand::RequestHostStatus,
             command::ZplCommand::RequestHostRamStatus,
-        ];
+        ]);
 
         let (mut rx, mut tx) = tokio::io::split(&mut self.connection);
 
         let mut lines = vec![];
         let mut buf = vec![];
-        let total_expected_response_lines = commands
-            .iter()
-            .map(command::ZplCommand::expected_response_lines)
-            .sum::<u32>();
+        let total_expected_response_lines = commands.expected_response_lines();
 
         // We send-and-read in sequence. Otherwise the print-back may be unordered.. Oh my.
-        for cmd in commands {
-            let command = crate::label::Label {
-                commands: vec![cmd],
-            };
+        for cmd in commands.0 {
+            let command = command::CommandSequence(vec![cmd]);
 
             let expected_response_lines = command.expected_response_lines();
             let data = String::from(command).into_bytes();
@@ -138,11 +133,11 @@ impl ZplPrinter {
         Ok(self.status.insert(info))
     }
 
-    pub async fn print(&mut self, label: Label) -> std::io::Result<()> {
+    pub async fn send(&mut self, commands: command::CommandSequence) -> std::io::Result<()> {
         // Send data to the printer
-        let response_lines = label.expected_response_lines();
-        for line in String::from(label).lines() {
-            self.connection.write_all(line.as_bytes()).await?;
+        let response_lines = commands.expected_response_lines();
+        for command in String::from(commands).lines() {
+            self.connection.write_all(command.as_bytes()).await?;
         }
 
         // Wait for incoming data
