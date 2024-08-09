@@ -104,7 +104,7 @@ pub async fn make_label(args: Args, dpmm_override: Option<u32>) -> anyhow::Resul
         ZplCommand::PrintQuantity {
             total: copies.get(),
             pause_and_cut_after: copies.get(),
-            replicates: copies.get(),
+            replicates_per_serial: copies.get(),
             cut_only: true,
         },
         ZplCommand::End,
