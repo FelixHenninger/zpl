@@ -2,8 +2,8 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use anyhow::{bail, Context};
-use core::num::NonZeroU32;
 use clap::Parser;
+use core::num::NonZeroU32;
 
 use command::{CommandSequence, MediaType, PostPrintAction, ZplCommand};
 use device::ZplPrinter;
@@ -24,17 +24,24 @@ pub struct Args {
     svg: Option<PathBuf>,
     #[arg(long = "copies", default_value = "1")]
     copies: NonZeroU32,
-    #[arg(long = "mm-width", default_value = "51")]
+    #[arg(long = "width", default_value = "51", help = "label width in mm")]
     width: u32,
-    #[arg(long = "mm-height", default_value = "51")]
+    #[arg(long = "height", default_value = "51", help = "label height in mm")]
     height: u32,
-    #[arg(long = "dpmm", default_value = "12")]
-    dpmm: u32,
+    #[arg(
+        long = "dpmm",
+        default_value = "None",
+        help = "print resolution in dots per mm (overrides printer autodetection)"
+    )]
+    dpmm: Option<u32>,
     #[arg(long = "output-zpl-only", default_value = "false")]
     output_zpl_only: bool,
 }
 
-pub async fn make_label(args: Args, dpmm_override: Option<u32>) -> anyhow::Result<CommandSequence> {
+pub async fn make_label(
+    args: Args,
+    dpmm_autodetect: Option<u32>,
+) -> anyhow::Result<CommandSequence> {
     let Args {
         ip: _,
         image,
@@ -42,14 +49,16 @@ pub async fn make_label(args: Args, dpmm_override: Option<u32>) -> anyhow::Resul
         copies,
         width,
         height,
-        dpmm: dpmm_manual,
+        dpmm: dpmm_override,
         output_zpl_only: _,
     } = args;
 
     let dpmm = if let Some(v) = dpmm_override {
         v
+    } else if let Some(v) = dpmm_autodetect {
+        v
     } else {
-        dpmm_manual
+        bail!("Can't ascertain resolution, please supply dpmm");
     };
 
     let margin_x = 0;
