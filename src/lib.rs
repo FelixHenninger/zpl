@@ -1,19 +1,16 @@
-use anyhow::{bail, Context};
-use device::ZplPrinter;
-
-use core::num::NonZeroU32;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
+use anyhow::{bail, Context};
+use core::num::NonZeroU32;
 use clap::Parser;
 
-use command::{MediaType, PostPrintAction, ZplCommand};
-use label::Label;
+use command::{CommandSequence, MediaType, PostPrintAction, ZplCommand};
+use device::ZplPrinter;
 
 mod command;
 mod device;
 mod image;
-mod label;
 mod read;
 mod svg;
 
@@ -37,7 +34,7 @@ pub struct Args {
     output_zpl_only: bool,
 }
 
-pub async fn make_label(args: Args, dpmm_override: Option<u32>) -> anyhow::Result<Label> {
+pub async fn make_label(args: Args, dpmm_override: Option<u32>) -> anyhow::Result<CommandSequence> {
     let Args {
         ip: _,
         image,
@@ -80,40 +77,38 @@ pub async fn make_label(args: Args, dpmm_override: Option<u32>) -> anyhow::Resul
         bail!("No image source selected");
     };
 
-    Ok(Label {
-        commands: vec![
-            //ZplCommand::Magic,
-            ZplCommand::Start,
-            ZplCommand::SetVerticalShift(12),
-            ZplCommand::SetTearOffPosition(-20),
-            ZplCommand::SetMediaType(MediaType::Transfer),
-            ZplCommand::SetHome(0, 0),
-            ZplCommand::SetHalfDensity(false),
-            ZplCommand::SetSpeed { print: 4, slew: 4 },
-            ZplCommand::SetDarkness(25),
-            ZplCommand::PersistConfig,
-            ZplCommand::SetInverted(false),
-            ZplCommand::SetEncoding(0),
-            ZplCommand::End,
-            ZplCommand::Start,
-            ZplCommand::SetPostPrintAction(PostPrintAction::Cut),
-            ZplCommand::LabelSetup {
-                w: width,
-                h: height,
-                dpmm,
-            },
-            ZplCommand::SetHorizontalShift(0),
-            ZplCommand::MoveOrigin(margin_x, margin_y),
-            ZplCommand::Image(image),
-            ZplCommand::PrintQuantity {
-                total: copies.get(),
-                pause_and_cut_after: copies.get(),
-                replicates: copies.get(),
-                cut_only: true,
-            },
-            ZplCommand::End,
-        ],
-    })
+    Ok(CommandSequence(vec![
+        //ZplCommand::Magic,
+        ZplCommand::Start,
+        ZplCommand::SetVerticalShift(12),
+        ZplCommand::SetTearOffPosition(-20),
+        ZplCommand::SetMediaType(MediaType::Transfer),
+        ZplCommand::SetHome(0, 0),
+        ZplCommand::SetHalfDensity(false),
+        ZplCommand::SetSpeed { print: 4, slew: 4 },
+        ZplCommand::SetDarkness(25),
+        ZplCommand::PersistConfig,
+        ZplCommand::SetInverted(false),
+        ZplCommand::SetEncoding(0),
+        ZplCommand::End,
+        ZplCommand::Start,
+        ZplCommand::SetPostPrintAction(PostPrintAction::Cut),
+        ZplCommand::LabelSetup {
+            w: width,
+            h: height,
+            dpmm,
+        },
+        ZplCommand::SetHorizontalShift(0),
+        ZplCommand::MoveOrigin(margin_x, margin_y),
+        ZplCommand::Image(image),
+        ZplCommand::PrintQuantity {
+            total: copies.get(),
+            pause_and_cut_after: copies.get(),
+            replicates: copies.get(),
+            cut_only: true,
+        },
+        ZplCommand::End,
+    ]))
 }
 
 pub async fn run(args: Args) -> anyhow::Result<()> {
@@ -123,7 +118,7 @@ pub async fn run(args: Args) -> anyhow::Result<()> {
 
     let label = make_label(args, Some(dpmm)).await?;
 
-    Ok(device.print(label).await?)
+    Ok(device.send(label).await?)
 }
 
 pub async fn run_output_zpl_only(args: Args) -> anyhow::Result<()> {
