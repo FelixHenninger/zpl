@@ -51,7 +51,7 @@ pub enum ZplCommand {
     PrintQuantity {
         total: u32,
         pause_and_cut_after: u32,
-        replicates: u32,
+        replicates_per_serial: u32,
         cut_only: bool,
     },
     Image(crate::image::SerializedImage),
@@ -182,7 +182,7 @@ impl From<ZplCommand> for String {
             ZplCommand::PrintQuantity {
                 total,
                 pause_and_cut_after,
-                replicates,
+                replicates_per_serial: replicates,
                 cut_only,
             } => {
                 format!(
