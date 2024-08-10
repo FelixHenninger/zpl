@@ -87,8 +87,7 @@ pub async fn make_label(
     };
 
     Ok(CommandSequence(vec![
-        //ZplCommand::Magic,
-        ZplCommand::Start,
+        ZplCommand::StartLabel,
         ZplCommand::SetVerticalShift(12),
         ZplCommand::SetTearOffPosition(-20),
         ZplCommand::SetMediaType(MediaType::Transfer),
@@ -96,27 +95,24 @@ pub async fn make_label(
         ZplCommand::SetHalfDensity(false),
         ZplCommand::SetSpeed { print: 4, slew: 4 },
         ZplCommand::SetDarkness(25),
-        ZplCommand::PersistConfig,
+        ZplCommand::PersistConfiguration,
         ZplCommand::SetInverted(false),
         ZplCommand::SetEncoding(0),
-        ZplCommand::End,
-        ZplCommand::Start,
+        ZplCommand::EndLabel,
+        ZplCommand::StartLabel,
         ZplCommand::SetPostPrintAction(PostPrintAction::Cut),
-        ZplCommand::LabelSetup {
-            w: width,
-            h: height,
-            dpmm,
-        },
+        ZplCommand::SetPrintWidth(width * dpmm),
+        ZplCommand::SetLabelLength(height * dpmm),
         ZplCommand::SetHorizontalShift(0),
         ZplCommand::MoveOrigin(margin_x, margin_y),
-        ZplCommand::Image(image),
+        ZplCommand::RenderImage(image),
         ZplCommand::PrintQuantity {
             total: copies.get(),
             pause_and_cut_after: copies.get(),
             replicates_per_serial: copies.get(),
             cut_only: true,
         },
-        ZplCommand::End,
+        ZplCommand::EndLabel,
     ]))
 }
 
