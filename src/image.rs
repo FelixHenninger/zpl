@@ -38,7 +38,10 @@ impl SerializedImage {
                     .collect::<Vec<String>>()
                     .concat();
                 // Append another 0 texel group for somewhat unknown reasons
-                format!("{output}{}", if output.len() % 2 == 0 { "" } else { "0" })
+                format!(
+                    "{output}{}",
+                    if output.len() % 2 == 0 { "" } else { "0" }
+                )
             })
             .collect::<Vec<String>>()
             // ... missing grouping ...
@@ -57,7 +60,11 @@ impl SerializedImage {
         }
     }
 
-    pub fn from_svg(svg: String, pix_width: u32, pix_height: u32) -> Result<Self, svg::Error> {
+    pub fn from_svg(
+        svg: String,
+        pix_width: u32,
+        pix_height: u32,
+    ) -> Result<Self, svg::Error> {
         let img = svg::render_svg(svg, pix_width, pix_height)?;
         Ok(Self::from_image(&img))
     }

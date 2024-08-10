@@ -46,16 +46,20 @@ pub fn render_svg(
 
     resvg::render(
         &rtree,
-        tiny_skia::Transform::from_scale(scale, scale).post_translate(offset_x, offset_y),
+        tiny_skia::Transform::from_scale(scale, scale)
+            .post_translate(offset_x, offset_y),
         &mut pixmap.as_mut(),
     );
 
     // Unwrapping here since this must succeed.
     let png = pixmap.encode_png().unwrap();
 
-    let image = image::io::Reader::with_format(std::io::Cursor::new(png), image::ImageFormat::Png)
-        .decode()
-        .unwrap();
+    let image = image::io::Reader::with_format(
+        std::io::Cursor::new(png),
+        image::ImageFormat::Png,
+    )
+    .decode()
+    .unwrap();
 
     debug_assert_eq!(image.width(), canvas_px_width);
     debug_assert_eq!(image.height(), canvas_px_height);

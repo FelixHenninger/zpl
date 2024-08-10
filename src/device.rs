@@ -23,7 +23,9 @@ impl ZplPrinter {
         }
     }
 
-    pub async fn request_device_status(&mut self) -> std::io::Result<&command::HostStatus> {
+    pub async fn request_device_status(
+        &mut self,
+    ) -> std::io::Result<&command::HostStatus> {
         let commands = command::CommandSequence(vec![
             command::ZplCommand::RequestHostIdentification,
             command::ZplCommand::RequestHostStatus,
@@ -133,7 +135,10 @@ impl ZplPrinter {
         Ok(self.status.insert(info))
     }
 
-    pub async fn send(&mut self, commands: command::CommandSequence) -> std::io::Result<()> {
+    pub async fn send(
+        &mut self,
+        commands: command::CommandSequence,
+    ) -> std::io::Result<()> {
         // Send data to the printer
         let response_lines = commands.expected_response_lines();
         for command in String::from(commands).lines() {
