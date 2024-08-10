@@ -5,7 +5,10 @@ use anyhow::{bail, Context};
 use clap::Parser;
 use core::num::NonZeroU32;
 
-use command::{CommandSequence, MediaType, PostPrintAction, ZplCommand};
+use command::{
+    BackfeedSequence, CommandSequence, MediaTracking, MediaType,
+    PostPrintAction, ZplCommand,
+};
 use device::ZplPrinter;
 
 mod command;
@@ -36,6 +39,31 @@ pub struct Args {
     dpmm: Option<u32>,
     #[arg(long = "output-zpl-only", default_value = "false")]
     output_zpl_only: bool,
+}
+
+pub fn make_preamble() -> CommandSequence {
+    CommandSequence(vec![
+        ZplCommand::SetDelimiter(','),
+        ZplCommand::SetControlCommandPrefix('~'),
+        ZplCommand::SetFormatCommandPrefix('^'),
+        ZplCommand::SetEncoding(0),
+        ZplCommand::StartLabel,
+        ZplCommand::SetTearOffPosition(0),
+        ZplCommand::SetVerticalShift(0),
+        ZplCommand::SetMediaType(MediaType::Transfer),
+        ZplCommand::SetMediaTracking(MediaTracking::NonContinuousWebSensing),
+        ZplCommand::SetBackfeedSequence(BackfeedSequence::Default),
+        ZplCommand::SetHome(0, 0),
+        ZplCommand::SetDarkness(25),
+        ZplCommand::SetHalfDensity(false),
+        ZplCommand::SetSpeed { print: 4, slew: 4 },
+        ZplCommand::PersistConfiguration,
+        ZplCommand::SetInverted(false),
+        // Adjustments
+        ZplCommand::SetVerticalShift(12),
+        ZplCommand::SetTearOffPosition(-20),
+        ZplCommand::EndLabel,
+    ])
 }
 
 pub async fn make_label(
@@ -90,19 +118,8 @@ pub async fn make_label(
         bail!("No image source selected");
     };
 
-    Ok(CommandSequence(vec![
-        ZplCommand::StartLabel,
-        ZplCommand::SetVerticalShift(12),
-        ZplCommand::SetTearOffPosition(-20),
-        ZplCommand::SetMediaType(MediaType::Transfer),
-        ZplCommand::SetHome(0, 0),
-        ZplCommand::SetHalfDensity(false),
-        ZplCommand::SetSpeed { print: 4, slew: 4 },
-        ZplCommand::SetDarkness(25),
-        ZplCommand::PersistConfiguration,
-        ZplCommand::SetInverted(false),
-        ZplCommand::SetEncoding(0),
-        ZplCommand::EndLabel,
+    let mut label = make_preamble();
+    label.append(CommandSequence(vec![
         ZplCommand::StartLabel,
         ZplCommand::SetPostPrintAction(PostPrintAction::Cut),
         ZplCommand::SetPrintWidth(width * dpmm),
@@ -117,7 +134,9 @@ pub async fn make_label(
             cut_only: true,
         },
         ZplCommand::EndLabel,
-    ]))
+    ]));
+
+    Ok(label)
 }
 
 pub async fn run(args: Args) -> anyhow::Result<()> {

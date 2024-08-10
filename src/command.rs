@@ -351,6 +351,10 @@ fn test_setup() {
 pub struct CommandSequence(pub Vec<ZplCommand>);
 
 impl CommandSequence {
+    pub fn append(&mut self, mut c: Self) {
+        self.0.append(&mut c.0)
+    }
+
     pub fn expected_response_lines(&self) -> u32 {
         total_expected_response_lines(&self.0)
     }
