@@ -1,3 +1,4 @@
+use std::num::NonZeroU32;
 use std::path::PathBuf;
 
 use anyhow::Context;
@@ -25,17 +26,22 @@ pub enum LabelContent {
 #[derive(Clone)]
 pub struct Label {
     pub content: Vec<LabelContent>,
+    pub width: u32,
+    pub height: u32,
+    pub dpmm: u32,
 }
 
 impl Label {
-    pub fn new() -> Self {
-        Self { content: vec![] }
+    pub fn new(width: u32, height: u32, dpmm: u32) -> Self {
+        Self {
+            content: vec![],
+            width,
+            height,
+            dpmm,
+        }
     }
 
-    pub async fn render(
-        &self,
-        dpmm: u32,
-    ) -> anyhow::Result<command::CommandSequence> {
+    pub async fn render(&self) -> anyhow::Result<command::CommandSequence> {
         let mut output = CommandSequence(vec![]);
 
         for c in &self.content {
@@ -44,15 +50,18 @@ impl Label {
                     let img =
                         ::image::open(path).expect("Image file not found");
                     img.resize_to_fill(
-                        *w * dpmm,
-                        *h * dpmm,
+                        *w * self.dpmm,
+                        *h * self.dpmm,
                         ::image::imageops::FilterType::Lanczos3,
                     );
 
                     let img_serialized =
                         crate::image::SerializedImage::from_image(&img);
 
-                    output.push(ZplCommand::MoveOrigin(*x * dpmm, *y * dpmm));
+                    output.push(ZplCommand::MoveOrigin(
+                        *x * self.dpmm,
+                        *y * self.dpmm,
+                    ));
                     output.push(ZplCommand::RenderImage(img_serialized));
                 }
                 LabelContent::Svg { path, x, y, w, h } => {
@@ -63,12 +72,15 @@ impl Label {
                     let img_serialized =
                         crate::image::SerializedImage::from_svg(
                             svg,
-                            *w * dpmm,
-                            *h * dpmm,
+                            *w * self.dpmm,
+                            *h * self.dpmm,
                         )
                         .context("Could not load SVG")?;
 
-                    output.push(ZplCommand::MoveOrigin(*x * dpmm, *y * dpmm));
+                    output.push(ZplCommand::MoveOrigin(
+                        *x * self.dpmm,
+                        *y * self.dpmm,
+                    ));
                     output.push(ZplCommand::RenderImage(img_serialized));
                 }
             }

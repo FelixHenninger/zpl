@@ -96,7 +96,7 @@ pub async fn make_label(
     let content_width = width - 2 * margin_x;
     let content_height = height - 2 * margin_y;
 
-    let mut label = Label::new();
+    let mut label = Label::new(width, height, dpmm);
     // Resize image, or rasterize SVG
     if let Some(image) = image {
         label.content.push(LabelContent::Image {
@@ -126,7 +126,7 @@ pub async fn make_label(
         ZplCommand::SetLabelLength(height * dpmm),
         ZplCommand::SetHorizontalShift(0),
     ]));
-    commands.append(label.render(dpmm).await?);
+    commands.append(label.render().await?);
     commands.append(CommandSequence(vec![
         ZplCommand::PrintQuantity {
             total: copies.get(),
