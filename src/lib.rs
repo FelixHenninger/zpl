@@ -1,9 +1,10 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-use anyhow::{bail, Context};
+use anyhow::bail;
 use clap::Parser;
 use core::num::NonZeroU32;
+use label::{Label, LabelContent};
 
 use command::{
     BackfeedSequence, CommandSequence, MediaTracking, MediaType,
@@ -14,6 +15,7 @@ use device::ZplPrinter;
 mod command;
 mod device;
 mod image;
+mod label;
 mod read;
 mod svg;
 
@@ -91,42 +93,41 @@ pub async fn make_label(
 
     let margin_x = 0;
     let margin_y = 0;
-    let content_px_width = width * dpmm - 2 * margin_x;
-    let content_px_height = height * dpmm - 2 * margin_y;
+    let content_width = width - 2 * margin_x;
+    let content_height = height - 2 * margin_y;
 
+    let mut label = Label::new();
     // Resize image, or rasterize SVG
-    let image = if let Some(image) = image {
-        let img = ::image::open(image).expect("Image file not found");
-        img.resize_to_fill(
-            content_px_height,
-            content_px_width,
-            ::image::imageops::FilterType::Lanczos3,
-        );
-        crate::image::SerializedImage::from_image(&img)
+    if let Some(image) = image {
+        label.content.push(LabelContent::Image {
+            path: image,
+            x: margin_x,
+            y: margin_y,
+            w: content_width,
+            h: content_height,
+        });
     } else if let Some(svg) = svg {
-        let svg = tokio::fs::read_to_string(svg)
-            .await
-            .expect("SVG file not found");
-
-        crate::image::SerializedImage::from_svg(
-            svg,
-            content_px_width,
-            content_px_height,
-        )
-        .context("Could not load SVG")?
+        label.content.push(LabelContent::Svg {
+            path: svg,
+            x: margin_x,
+            y: margin_y,
+            w: content_width,
+            h: content_height,
+        });
     } else {
-        bail!("No image source selected");
+        bail!("No image/vector source selected");
     };
 
-    let mut label = make_preamble();
-    label.append(CommandSequence(vec![
+    let mut commands = make_preamble();
+    commands.append(CommandSequence(vec![
         ZplCommand::StartLabel,
         ZplCommand::SetPostPrintAction(PostPrintAction::Cut),
         ZplCommand::SetPrintWidth(width * dpmm),
         ZplCommand::SetLabelLength(height * dpmm),
         ZplCommand::SetHorizontalShift(0),
-        ZplCommand::MoveOrigin(margin_x, margin_y),
-        ZplCommand::RenderImage(image),
+    ]));
+    commands.append(label.render(dpmm).await?);
+    commands.append(CommandSequence(vec![
         ZplCommand::PrintQuantity {
             total: copies.get(),
             pause_and_cut_after: copies.get(),
@@ -136,7 +137,7 @@ pub async fn make_label(
         ZplCommand::EndLabel,
     ]));
 
-    Ok(label)
+    Ok(commands)
 }
 
 pub async fn run(args: Args) -> anyhow::Result<()> {
