@@ -80,8 +80,12 @@ pub async fn make_label(
             .await
             .expect("SVG file not found");
 
-        crate::image::SerializedImage::from_svg(svg, content_px_width, content_px_height)
-            .context("Could not load SVG")?
+        crate::image::SerializedImage::from_svg(
+            svg,
+            content_px_width,
+            content_px_height,
+        )
+        .context("Could not load SVG")?
     } else {
         bail!("No image source selected");
     };
