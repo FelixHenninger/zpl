@@ -355,6 +355,10 @@ impl CommandSequence {
         self.0.append(&mut c.0)
     }
 
+    pub fn push(&mut self, c: ZplCommand) {
+        self.0.push(c)
+    }
+
     pub fn expected_response_lines(&self) -> u32 {
         total_expected_response_lines(&self.0)
     }
