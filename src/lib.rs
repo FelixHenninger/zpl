@@ -6,10 +6,7 @@ use clap::Parser;
 use core::num::NonZeroU32;
 use label::{Label, LabelContent};
 
-use command::{
-    BackfeedSequence, CommandSequence, MediaTracking, MediaType,
-    PostPrintAction, ZplCommand,
-};
+use command::CommandSequence;
 use device::ZplPrinter;
 
 mod command;
@@ -41,31 +38,6 @@ pub struct Args {
     dpmm: Option<u32>,
     #[arg(long = "output-zpl-only", default_value = "false")]
     output_zpl_only: bool,
-}
-
-pub fn make_preamble() -> CommandSequence {
-    CommandSequence(vec![
-        ZplCommand::SetDelimiter(','),
-        ZplCommand::SetControlCommandPrefix('~'),
-        ZplCommand::SetFormatCommandPrefix('^'),
-        ZplCommand::SetEncoding(0),
-        ZplCommand::StartLabel,
-        ZplCommand::SetTearOffPosition(0),
-        ZplCommand::SetVerticalShift(0),
-        ZplCommand::SetMediaType(MediaType::Transfer),
-        ZplCommand::SetMediaTracking(MediaTracking::NonContinuousWebSensing),
-        ZplCommand::SetBackfeedSequence(BackfeedSequence::Default),
-        ZplCommand::SetHome(0, 0),
-        ZplCommand::SetDarkness(25),
-        ZplCommand::SetHalfDensity(false),
-        ZplCommand::SetSpeed { print: 4, slew: 4 },
-        ZplCommand::PersistConfiguration,
-        ZplCommand::SetInverted(false),
-        // Adjustments
-        ZplCommand::SetVerticalShift(12),
-        ZplCommand::SetTearOffPosition(-20),
-        ZplCommand::EndLabel,
-    ])
 }
 
 pub async fn make_label(
@@ -118,24 +90,7 @@ pub async fn make_label(
         bail!("No image/vector source selected");
     };
 
-    let mut commands = make_preamble();
-    commands.append(CommandSequence(vec![
-        ZplCommand::StartLabel,
-        ZplCommand::SetPostPrintAction(PostPrintAction::Cut),
-        ZplCommand::SetPrintWidth(width * dpmm),
-        ZplCommand::SetLabelLength(height * dpmm),
-        ZplCommand::SetHorizontalShift(0),
-    ]));
-    commands.append(label.render().await?);
-    commands.append(CommandSequence(vec![
-        ZplCommand::PrintQuantity {
-            total: copies.get(),
-            pause_and_cut_after: copies.get(),
-            replicates_per_serial: copies.get(),
-            cut_only: true,
-        },
-        ZplCommand::EndLabel,
-    ]));
+    let commands = label.print(copies.get()).await?;
 
     Ok(commands)
 }
