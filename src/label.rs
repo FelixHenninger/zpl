@@ -23,6 +23,12 @@ pub enum LabelContent {
         w: u32,
         h: u32,
     },
+    QrCode {
+        content: String,
+        x: u32,
+        y: u32,
+        zoom: u32,
+    },
 }
 
 #[derive(Clone)]
@@ -84,6 +90,23 @@ impl Label {
                         *y * self.dpmm,
                     ));
                     output.push(ZplCommand::RenderImage(img_serialized));
+                }
+                LabelContent::QrCode {
+                    content,
+                    x,
+                    y,
+                    zoom,
+                } => {
+                    output.push(ZplCommand::MoveOrigin(
+                        *x * self.dpmm,
+                        *y * self.dpmm,
+                    ));
+                    output.push(ZplCommand::FieldModeQRCode { zoom: *zoom });
+                    output.push(ZplCommand::FieldData(format!(
+                        "{}A,{}",
+                        "Q", // Error correction level
+                        content
+                    )));
                 }
             }
         }
