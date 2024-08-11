@@ -117,8 +117,9 @@ pub enum ZplCommand {
         cut_only: bool,
     },
     RenderImage(crate::image::SerializedImage),
-    RenderQRCode {
-        content: String,
+    FieldOrigin(u32, u32),
+    FieldData(String),
+    FieldModeQRCode {
         zoom: u32,
     },
     RequestHostIdentification,
@@ -299,21 +300,17 @@ impl From<ZplCommand> for String {
                 bytes_per_row,
                 data,
             }) => format!("^GFA,{byte_count},{total_field_count},{bytes_per_row},{data}^FS"),
-            ZplCommand::RenderQRCode { content, zoom } => {
-                let config = format!(
+            ZplCommand::FieldOrigin(x, y) => format!("^FO{x},{y}"),
+            ZplCommand::FieldData(data) => format!("^FD{data}"),
+            ZplCommand::FieldModeQRCode { zoom } => {
+                format!(
                     "^BQ{},{},{},{},{}",
                     "N",  // Orientation
                     2,    // Model
                     zoom, // Magnification (1-100)
                     "Q",  // Error correction
                     7     // Mask
-                );
-                let data = format!(
-                    "^FD{}A,{}",
-                    "Q", // Error correction level
-                    content
-                );
-                format!("{config}\n{data}")
+                )
             }
             ZplCommand::RequestHostIdentification => "~HI".to_string(),
             ZplCommand::RequestHostRamStatus => "~HM".to_string(),
