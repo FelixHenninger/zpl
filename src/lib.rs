@@ -20,22 +20,33 @@ mod svg;
 pub struct Args {
     #[arg(default_value = "192.168.1.39:9100")]
     ip: SocketAddr,
+
     #[arg(long = "image")]
     image: Option<PathBuf>,
+
     #[arg(long = "svg")]
     svg: Option<PathBuf>,
+
     #[arg(long = "copies", default_value = "1")]
     copies: NonZeroU32,
+    
+    #[arg(long = "margin", default_value = "5", help = "xy margin in mm")]
+    margin: u32,
+    
+    
     #[arg(long = "width", default_value = "51", help = "label width in mm")]
     width: u32,
+
     #[arg(long = "height", default_value = "51", help = "label height in mm")]
     height: u32,
+
     #[arg(
         long = "dpmm",
         default_value = "None",
         help = "print resolution in dots per mm (overrides printer autodetection)"
     )]
     dpmm: Option<u32>,
+
     #[arg(long = "output-zpl-only", default_value = "false")]
     output_zpl_only: bool,
 }
@@ -49,6 +60,7 @@ pub async fn make_label(
         image,
         svg,
         copies,
+        margin,
         width,
         height,
         dpmm: dpmm_override,
@@ -63,8 +75,8 @@ pub async fn make_label(
         bail!("Can't ascertain resolution, please supply dpmm");
     };
 
-    let margin_x = 0;
-    let margin_y = 0;
+    let margin_x = margin;
+    let margin_y = margin;
     let content_width = width - 2 * margin_x;
     let content_height = height - 2 * margin_y;
 
