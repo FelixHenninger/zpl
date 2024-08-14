@@ -57,7 +57,8 @@ impl Label {
                 LabelContent::Image { path, x, y, w, h } => {
                     let img =
                         ::image::open(path).expect("Image file not found");
-                    img.resize_to_fill(
+
+                    let img = img.resize_to_fill(
                         *w * self.dpmm,
                         *h * self.dpmm,
                         ::image::imageops::FilterType::Lanczos3,
