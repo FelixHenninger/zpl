@@ -33,7 +33,6 @@ pub struct Args {
     #[arg(long = "margin", default_value = "5", help = "xy margin in mm")]
     margin: u32,
     
-    
     #[arg(long = "width", default_value = "51", help = "label width in mm")]
     width: u32,
 
