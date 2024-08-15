@@ -9,10 +9,10 @@ use label::{Label, LabelContent};
 use command::CommandSequence;
 use device::ZplPrinter;
 
-mod command;
-mod device;
+pub mod command;
+pub mod device;
 mod image;
-mod label;
+pub mod label;
 mod read;
 mod svg;
 
