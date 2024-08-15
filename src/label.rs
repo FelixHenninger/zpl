@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::Context;
 
 use crate::command::{
@@ -10,14 +8,14 @@ use crate::command::{
 #[derive(Clone, Debug)]
 pub enum LabelContent {
     Image {
-        path: PathBuf,
+        img: ::image::DynamicImage,
         x: u32,
         y: u32,
         w: u32,
         h: u32,
     },
     Svg {
-        path: PathBuf,
+        code: String,
         x: u32,
         y: u32,
         w: u32,
@@ -54,10 +52,7 @@ impl Label {
 
         for c in &self.content {
             match c {
-                LabelContent::Image { path, x, y, w, h } => {
-                    let img =
-                        ::image::open(path).expect("Image file not found");
-
+                LabelContent::Image { img, x, y, w, h } => {
                     let img = img.resize_to_fill(
                         *w * self.dpmm,
                         *h * self.dpmm,
@@ -73,14 +68,10 @@ impl Label {
                     ));
                     output.push(ZplCommand::RenderImage(img_serialized));
                 }
-                LabelContent::Svg { path, x, y, w, h } => {
-                    let svg = tokio::fs::read_to_string(path)
-                        .await
-                        .expect("SVG file not found");
-
+                LabelContent::Svg { code, x, y, w, h } => {
                     let img_serialized =
                         crate::image::SerializedImage::from_svg(
-                            svg,
+                            code.to_string(),
                             *w * self.dpmm,
                             *h * self.dpmm,
                         )
