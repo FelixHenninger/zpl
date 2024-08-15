@@ -82,16 +82,22 @@ pub async fn make_label(
     let mut label = Label::new(width, height, dpmm);
     // Resize image, or rasterize SVG
     if let Some(image) = image {
+        let img = ::image::open(image).expect("Image file not found");
+
         label.content.push(LabelContent::Image {
-            path: image,
+            img,
             x: margin_x,
             y: margin_y,
             w: content_width,
             h: content_height,
         });
-    } else if let Some(svg) = svg {
+    } else if let Some(path) = svg {
+        let code = tokio::fs::read_to_string(path)
+            .await
+            .expect("SVG file not found");
+
         label.content.push(LabelContent::Svg {
-            path: svg,
+            code,
             x: margin_x,
             y: margin_y,
             w: content_width,
