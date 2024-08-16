@@ -9,22 +9,22 @@ use crate::command::{
 pub enum LabelContent {
     Image {
         img: ::image::DynamicImage,
-        x: u32,
-        y: u32,
-        w: u32,
-        h: u32,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
     },
     Svg {
         code: String,
-        x: u32,
-        y: u32,
-        w: u32,
-        h: u32,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
     },
     QrCode {
         content: String,
-        x: u32,
-        y: u32,
+        x: f32,
+        y: f32,
         zoom: u32,
     },
 }
@@ -54,8 +54,8 @@ impl Label {
             match c {
                 LabelContent::Image { img, x, y, w, h } => {
                     let img = img.resize_to_fill(
-                        *w * self.dpmm,
-                        *h * self.dpmm,
+                        (*w * self.dpmm as f32).floor() as u32,
+                        (*h * self.dpmm as f32).floor() as u32,
                         ::image::imageops::FilterType::Lanczos3,
                     );
 
@@ -63,8 +63,8 @@ impl Label {
                         crate::image::SerializedImage::from_image(&img);
 
                     output.push(ZplCommand::MoveOrigin(
-                        *x * self.dpmm,
-                        *y * self.dpmm,
+                        (*x * self.dpmm as f32).floor() as u32,
+                        (*y * self.dpmm as f32).floor() as u32,
                     ));
                     output.push(ZplCommand::RenderImage(img_serialized));
                 }
@@ -72,14 +72,14 @@ impl Label {
                     let img_serialized =
                         crate::image::SerializedImage::from_svg(
                             code.to_string(),
-                            *w * self.dpmm,
-                            *h * self.dpmm,
+                            (*w * self.dpmm as f32).floor() as u32,
+                            (*h * self.dpmm as f32).floor() as u32,
                         )
                         .context("Could not load SVG")?;
 
                     output.push(ZplCommand::MoveOrigin(
-                        *x * self.dpmm,
-                        *y * self.dpmm,
+                        (*x * self.dpmm as f32).floor() as u32,
+                        (*y * self.dpmm as f32).floor() as u32,
                     ));
                     output.push(ZplCommand::RenderImage(img_serialized));
                 }
@@ -90,8 +90,8 @@ impl Label {
                     zoom,
                 } => {
                     output.push(ZplCommand::MoveOrigin(
-                        *x * self.dpmm,
-                        *y * self.dpmm,
+                        (*x * self.dpmm as f32).floor() as u32,
+                        (*y * self.dpmm as f32).floor() as u32,
                     ));
                     output.push(ZplCommand::FieldModeQRCode { zoom: *zoom });
                     output.push(ZplCommand::FieldData(format!(
