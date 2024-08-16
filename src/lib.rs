@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::bail;
 use clap::Parser;
 use core::num::NonZeroU32;
-use label::{Label, LabelContent};
+use label::{Label, LabelContent, Unit};
 
 use command::CommandSequence;
 use device::ZplPrinter;
@@ -74,10 +74,10 @@ pub async fn make_label(
         bail!("Can't ascertain resolution, please supply dpmm");
     };
 
-    let margin_x = margin;
-    let margin_y = margin;
-    let content_width = width - 2 * margin_x;
-    let content_height = height - 2 * margin_y;
+    let margin_x = margin as f32;
+    let margin_y = margin as f32;
+    let content_width = width as f32 - 2.0 * margin_x;
+    let content_height = height as f32 - 2.0 * margin_y;
 
     let mut label = Label::new(width, height, dpmm);
     // Resize image, or rasterize SVG
@@ -86,10 +86,10 @@ pub async fn make_label(
 
         label.content.push(LabelContent::Image {
             img,
-            x: margin_x,
-            y: margin_y,
-            w: content_width,
-            h: content_height,
+            x: Unit::Millimetres(margin_x),
+            y: Unit::Millimetres(margin_y),
+            w: Unit::Millimetres(content_width),
+            h: Unit::Millimetres(content_height),
         });
     } else if let Some(path) = svg {
         let code = tokio::fs::read_to_string(path)
@@ -98,10 +98,10 @@ pub async fn make_label(
 
         label.content.push(LabelContent::Svg {
             code,
-            x: margin_x,
-            y: margin_y,
-            w: content_width,
-            h: content_height,
+            x: Unit::Millimetres(margin_x),
+            y: Unit::Millimetres(margin_y),
+            w: Unit::Millimetres(content_width),
+            h: Unit::Millimetres(content_height),
         });
     } else {
         bail!("No image/vector source selected");

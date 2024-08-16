@@ -9,24 +9,30 @@ use crate::command::{
 pub enum LabelContent {
     Image {
         img: ::image::DynamicImage,
-        x: f32,
-        y: f32,
-        w: f32,
-        h: f32,
+        x: Unit,
+        y: Unit,
+        w: Unit,
+        h: Unit,
     },
     Svg {
         code: String,
-        x: f32,
-        y: f32,
-        w: f32,
-        h: f32,
+        x: Unit,
+        y: Unit,
+        w: Unit,
+        h: Unit,
     },
     QrCode {
         content: String,
-        x: f32,
-        y: f32,
+        x: Unit,
+        y: Unit,
         zoom: u32,
     },
+}
+
+#[derive(Clone, Debug)]
+pub enum Unit {
+    Dots(u32),
+    Millimetres(f32),
 }
 
 #[derive(Clone)]
@@ -47,6 +53,13 @@ impl Label {
         }
     }
 
+    fn unit_to_dots(&self, u: &Unit) -> u32 {
+        match u {
+            Unit::Dots(d) => *d,
+            Unit::Millimetres(mm) => (mm * self.dpmm as f32).floor() as u32,
+        }
+    }
+
     pub async fn render(&self) -> anyhow::Result<command::CommandSequence> {
         let mut output = CommandSequence(vec![]);
 
@@ -54,8 +67,8 @@ impl Label {
             match c {
                 LabelContent::Image { img, x, y, w, h } => {
                     let img = img.resize_to_fill(
-                        (*w * self.dpmm as f32).floor() as u32,
-                        (*h * self.dpmm as f32).floor() as u32,
+                        self.unit_to_dots(w),
+                        self.unit_to_dots(h),
                         ::image::imageops::FilterType::Lanczos3,
                     );
 
@@ -63,8 +76,8 @@ impl Label {
                         crate::image::SerializedImage::from_image(&img);
 
                     output.push(ZplCommand::MoveOrigin(
-                        (*x * self.dpmm as f32).floor() as u32,
-                        (*y * self.dpmm as f32).floor() as u32,
+                        self.unit_to_dots(x),
+                        self.unit_to_dots(y),
                     ));
                     output.push(ZplCommand::RenderImage(img_serialized));
                 }
@@ -72,14 +85,14 @@ impl Label {
                     let img_serialized =
                         crate::image::SerializedImage::from_svg(
                             code.to_string(),
-                            (*w * self.dpmm as f32).floor() as u32,
-                            (*h * self.dpmm as f32).floor() as u32,
+                            self.unit_to_dots(w),
+                            self.unit_to_dots(h),
                         )
                         .context("Could not load SVG")?;
 
                     output.push(ZplCommand::MoveOrigin(
-                        (*x * self.dpmm as f32).floor() as u32,
-                        (*y * self.dpmm as f32).floor() as u32,
+                        self.unit_to_dots(x),
+                        self.unit_to_dots(y),
                     ));
                     output.push(ZplCommand::RenderImage(img_serialized));
                 }
@@ -90,8 +103,8 @@ impl Label {
                     zoom,
                 } => {
                     output.push(ZplCommand::MoveOrigin(
-                        (*x * self.dpmm as f32).floor() as u32,
-                        (*y * self.dpmm as f32).floor() as u32,
+                        self.unit_to_dots(x),
+                        self.unit_to_dots(y),
                     ));
                     output.push(ZplCommand::FieldModeQRCode { zoom: *zoom });
                     output.push(ZplCommand::FieldData(format!(
