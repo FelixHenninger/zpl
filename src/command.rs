@@ -1,4 +1,4 @@
-use crate::image::SerializedImage;
+use crate::util::image::SerializedImage;
 
 #[derive(Clone)]
 pub enum PostPrintAction {
@@ -116,7 +116,7 @@ pub enum ZplCommand {
         replicates_per_serial: u32,
         cut_only: bool,
     },
-    RenderImage(crate::image::SerializedImage),
+    RenderImage(crate::util::image::SerializedImage),
     FieldOrigin(u32, u32),
     FieldData(String),
     FieldModeQRCode {

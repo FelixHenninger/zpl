@@ -11,10 +11,8 @@ use device::ZplPrinter;
 
 pub mod command;
 pub mod device;
-mod image;
 pub mod label;
-mod read;
-mod svg;
+pub mod util;
 
 #[derive(Parser, Clone)]
 pub struct Args {

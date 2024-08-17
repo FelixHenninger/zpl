@@ -73,7 +73,7 @@ impl Label {
                     );
 
                     let img_serialized =
-                        crate::image::SerializedImage::from_image(&img);
+                        crate::util::image::SerializedImage::from_image(&img);
 
                     output.push(ZplCommand::MoveOrigin(
                         self.unit_to_dots(x),
@@ -83,7 +83,7 @@ impl Label {
                 }
                 LabelContent::Svg { code, x, y, w, h } => {
                     let img_serialized =
-                        crate::image::SerializedImage::from_svg(
+                        crate::util::image::SerializedImage::from_svg(
                             code.to_string(),
                             self.unit_to_dots(w),
                             self.unit_to_dots(h),
