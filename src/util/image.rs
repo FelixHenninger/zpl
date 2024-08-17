@@ -3,7 +3,7 @@ use std::sync::Arc;
 use image::{self, imageops};
 use itertools::Itertools;
 
-use crate::svg;
+use crate::util::svg;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SerializedImage {

@@ -1,9 +1,11 @@
 /// Talk to the device.
-use crate::{command, read};
+use crate::command;
 use tokio::{
     self,
     io::{self, AsyncWriteExt},
 };
+
+mod read;
 
 pub struct ZplPrinter {
     connection: tokio::net::TcpStream,
