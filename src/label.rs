@@ -53,7 +53,7 @@ impl Label {
         }
     }
 
-    fn unit_to_dots(&self, u: &Unit) -> u32 {
+    pub fn unit_to_dots(&self, u: &Unit) -> u32 {
         match u {
             Unit::Dots(d) => *d,
             Unit::Millimetres(mm) => (mm * self.dpmm as f32).floor() as u32,
