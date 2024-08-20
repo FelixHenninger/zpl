@@ -15,6 +15,7 @@ pub mod label;
 pub mod util;
 
 #[derive(Parser, Clone)]
+#[command(version, about)]
 pub struct Args {
     #[arg(default_value = "192.168.1.39:9100")]
     ip: SocketAddr,
