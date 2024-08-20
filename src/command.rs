@@ -1,4 +1,4 @@
-use crate::image::serialize_image;
+use crate::image::{SerializedImage};
 
 #[derive(Clone)]
 pub enum PostPrintAction {
@@ -54,9 +54,7 @@ pub enum ZplCommand {
         replicates: u32,
         cut_only: bool,
     },
-    Image {
-        image: image::DynamicImage
-    },
+    Image(crate::image::SerializedImage),
     RenderQRCode {
         content: String,
         zoom: u32,
@@ -194,9 +192,12 @@ impl From<ZplCommand> for String {
                     if cut_only { "Y" } else { "N" }
                 )
             }
-            ZplCommand::Image { image } => {
-                serialize_image(&image)
-            }
+            ZplCommand::Image(SerializedImage {
+                byte_count,
+                total_field_count,
+                bytes_per_row,
+                data,
+            }) => format!("^GFA,{byte_count},{total_field_count},{bytes_per_row},{data}^FS"),
             ZplCommand::RenderQRCode { content, zoom } => {
                 let config = format!(
                     "^BQ{},{},{},{},{}",
