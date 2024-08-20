@@ -37,6 +37,7 @@
             python3
             python3Packages.pillow
             python3Packages.crc
+            mob
           ] ++ (
             # Apple libraries if necessary
             lib.optional stdenv.isDarwin [
