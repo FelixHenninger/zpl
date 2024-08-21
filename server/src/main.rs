@@ -88,7 +88,7 @@ async fn status(State(state): State<Server>) -> String {
         })
         .collect();
 
-    format!("{map:?}")
+    serde_json::to_string(&map).unwrap()
 }
 
 #[tokio::main(flavor = "multi_thread")]
@@ -98,7 +98,7 @@ async fn main() {
     reload(State(state.clone())).await;
 
     let app = Router::new()
-        .route("/", get(status))
+        .route("/info", get(status))
         .route("/reload", post(reload))
         .route("/print/:printer", post(push_job))
         .with_state(state);
