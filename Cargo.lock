@@ -2027,9 +2027,12 @@ dependencies = [
 name = "zpl-server"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
  "serde",
+ "serde_json",
  "tokio",
+ "zpl",
 ]
 
 [[package]]
