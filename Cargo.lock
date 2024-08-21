@@ -2015,12 +2015,19 @@ name = "zpl"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "axum",
  "clap",
  "image",
  "itertools 0.13.0",
  "quick-error",
  "resvg",
+ "tokio",
+]
+
+[[package]]
+name = "zpl-server"
+version = "0.1.0"
+dependencies = [
+ "axum",
  "serde",
  "tokio",
 ]
