@@ -1,6 +1,7 @@
 mod configuration;
 mod job;
 mod physical_printer;
+mod spa;
 
 use axum::{
     extract::{Path, State},
@@ -98,9 +99,13 @@ async fn main() {
     reload(State(state.clone())).await;
 
     let app = Router::new()
-        .route("/info", get(status))
-        .route("/reload", post(reload))
-        .route("/print/:printer", post(push_job))
+        .route("/", get(spa::frontpage))
+        .route("/index.html", get(spa::frontpage))
+        .route("/static/style.css", get(spa::static_style_css))
+
+        .route("/api/v1/info", get(status))
+        .route("/api/v1/reload", post(reload))
+        .route("/api/v1/print/:printer", post(push_job))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

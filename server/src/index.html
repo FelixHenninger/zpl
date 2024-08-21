@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<link rel="stylesheet" type="text/css" href="static/style.css"/>
+</head>
+<body>
+	<input id="zpl-api-printer" type="text" value="gx430t"></input>
+	<label for="zpl-api-file">Select SVG: </label>
+	<input id="zpl-api-file" type="file" accept=".svg,image/svg+xml"></input>
+	<button id="zpl-api-print" disabled>Print this file</button>
+	<p id="zpl-status"></p>
+	<script>
+		document.getElementById('zpl-api-file').oninput = function(ev) {
+			if (ev.target.files)
+				document.getElementById('zpl-api-print').disabled = false;
+		}
+		document.getElementById('zpl-api-print').onclick = function() {
+			const [file] = document.getElementById('zpl-api-file').files;
+			if (file == undefined) {
+				return;
+			}
+
+			const printer = document.getElementById('zpl-api-printer').value;
+
+			(async function() {
+				const data = await file.text();
+				const response = await fetch(`/api/v1/print/${printer}`, {
+					method: 'POST',
+					body: JSON.stringify({'svg': data}),
+					headers: {
+						"Content-Type": "application/json",
+					},
+				});
+
+				document.getElementById('zpl-status').innerText = await response.text();
+			})();
+		}
+	</script>
+</body>
+</html>
