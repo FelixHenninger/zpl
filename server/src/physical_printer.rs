@@ -82,17 +82,11 @@ impl PhysicalPrinter {
                 let status = self.status.clone();
 
                 label_being_printed.spawn(async move {
-                    let Ok(mut printer) =
-                        ZplPrinter::with_address(label.addr).await
-                    else {
-                        anyhow::bail!("Printer can not connect");
-                    };
-
-                    let Ok(device_status) =
-                        printer.request_device_status().await
-                    else {
-                        anyhow::bail!("Printer does not give status");
-                    };
+                    let mut printer =
+                        ZplPrinter::with_address(label.addr).await?;
+                    eprintln!("Connection opened");
+                    let device_status = printer.request_device_status().await?;
+                    eprintln!("Device status up");
 
                     status
                         .is_up
@@ -112,6 +106,7 @@ impl PhysicalPrinter {
                 success = label_being_printed.join_next(), if !label_being_printed.is_empty() => {
                     match success {
                         Some(Ok(Ok(con))) => {
+                            eprintln!("Ready printer at {}", self.label.addr);
                             active = Some(con);
                         },
                         Some(Ok(Err(err))) => {
@@ -140,11 +135,16 @@ async fn print_label(
     mut con: ActiveConnection,
     job: PrintJob,
 ) -> anyhow::Result<ActiveConnection> {
+        let code = tokio::fs::read_to_string("/home/andreas/Downloads/cat-ears(3).svg")
+            .await
+            .expect("SVG file not found");
+
     let label = tokio::task::block_in_place(|| {
-        job.into_label(&con.label.dimensions, &con.device_status.identification)
+        job.into_label(&con.label.dimensions, &con.device_status.identification, code)
     });
 
     let seq = label.print(1).await?;
+    // tokio::fs::write("/tmp/zpl-debug", seq.to_string()).await?;
     let _ = con.printer.send(seq).await?;
     // No change in connection state, free to reuse it.
     Ok(con)
