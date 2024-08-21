@@ -76,6 +76,8 @@ impl PhysicalPrinter {
         let mut con = con;
         let mut active: Option<ActiveConnection> = None;
 
+        let retry_fail = std::time::Duration::from_millis(1_000);
+
         loop {
             if label_being_printed.is_empty() && active.is_none() {
                 eprintln!(
@@ -116,6 +118,8 @@ impl PhysicalPrinter {
                         },
                         Some(Ok(Err(err))) => {
                             eprintln!("[{}]: {:?}", con.name, err);
+                            eprintln!("[{}]: Retry in {:?}", con.name, retry_fail);
+                            tokio::time::sleep(retry_fail).await;
                         }
                         Some(Err(err)) => {
                             eprintln!("[{}]: {:?}", con.name,  err);
@@ -186,7 +190,7 @@ impl Driver {
     pub async fn send_job(&self, job: PrintJob) -> Result<(), &'static str> {
         match self.message.send(Task::Job(job)).await {
             Ok(_) => Ok(()),
-            Err(_) => Err("failed to send"),
+            Err(_) => Err("failed to queue"),
         }
     }
 

@@ -95,6 +95,8 @@ async fn status(State(state): State<Server>) -> String {
 async fn main() {
     let state = Server::new("server.json".into());
 
+    reload(State(state.clone())).await;
+
     let app = Router::new()
         .route("/", get(status))
         .route("/reload", post(reload))
