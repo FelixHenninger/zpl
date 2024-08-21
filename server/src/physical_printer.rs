@@ -188,7 +188,7 @@ impl Driver {
     }
 
     pub async fn send_job(&self, job: PrintJob) -> Result<(), &'static str> {
-        match self.message.send(Task::Job(job)).await {
+        match self.message.try_send(Task::Job(job)) {
             Ok(_) => Ok(()),
             Err(_) => Err("failed to queue"),
         }
