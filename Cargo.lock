@@ -1670,6 +1670,7 @@ dependencies = [
  "itertools 0.13.0",
  "quick-error",
  "resvg",
+ "serde",
  "tokio",
 ]
 
