@@ -46,8 +46,10 @@ async fn reload(State(state): State<Server>) -> &'static str {
     while let Some(_next) = state.active_printer.join_next().await {}
 
     for (name, configuration) in configuration.labels {
-        let (driver, con) = physical_printer::Driver::new();
+        let (driver, con) = physical_printer::Driver::new(&configuration);
         let printer = physical_printer::PhysicalPrinter::new(configuration);
+
+        let con = con.with_name(name.clone());
         state.active_printer.spawn(printer.clone().drive(con));
 
         let queue = PrintQueue { printer, driver };

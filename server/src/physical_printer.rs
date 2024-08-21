@@ -43,6 +43,7 @@ pub struct Driver {
 pub struct Connector {
     message: mpsc::Receiver<Task>,
     end: oneshot::Receiver<ShutdownToken>,
+    name: String,
 }
 
 pub enum Task {
@@ -77,16 +78,20 @@ impl PhysicalPrinter {
 
         loop {
             if label_being_printed.is_empty() && active.is_none() {
-                eprintln!("Connecting to printer at {}", self.label.addr);
+                eprintln!(
+                    "[{}]: Connecting to printer at {}",
+                    con.name, self.label.addr
+                );
                 let label = self.label.clone();
                 let status = self.status.clone();
+                let name = con.name.clone();
 
                 label_being_printed.spawn(async move {
                     let mut printer =
                         ZplPrinter::with_address(label.addr).await?;
-                    eprintln!("Connection opened");
+                    eprintln!("[{}]: Connection opened", name);
                     let device_status = printer.request_device_status().await?;
-                    eprintln!("Device status up");
+                    eprintln!("[{}]: Device status up", name);
 
                     status
                         .is_up
@@ -105,18 +110,28 @@ impl PhysicalPrinter {
             tokio::select!(
                 success = label_being_printed.join_next(), if !label_being_printed.is_empty() => {
                     match success {
-                        Some(Ok(Ok(con))) => {
-                            eprintln!("Ready printer at {}", self.label.addr);
-                            active = Some(con);
+                        Some(Ok(Ok(ready))) => {
+                            eprintln!("[{}]: Printer ready for label at {}", con.name, self.label.addr);
+                            active = Some(ready);
                         },
                         Some(Ok(Err(err))) => {
-                            eprintln!("{:?}", err);
+                            eprintln!("[{}]: {:?}", con.name, err);
                         }
                         Some(Err(err)) => {
-                            eprintln!("{:?}", err);
+                            eprintln!("[{}]: {:?}", con.name,  err);
                         }
                         None => unreachable!(),
                     }
+                },
+                end = &mut con.end => {
+                    match end {
+                        Ok(ShutdownToken) => {},
+                        Err(recv_error) => {
+                            eprintln!("[{}]: {recv_error:?}", con.name);
+                        }
+                    }
+
+                    break;
                 },
                 // Back-Pressure: only accept message while not printing. Could also do a buffer
                 // but the channel already is a buffer itself. That only makes sense if we want to
@@ -135,12 +150,8 @@ async fn print_label(
     mut con: ActiveConnection,
     job: PrintJob,
 ) -> anyhow::Result<ActiveConnection> {
-        let code = tokio::fs::read_to_string("/home/andreas/Downloads/cat-ears(3).svg")
-            .await
-            .expect("SVG file not found");
-
     let label = tokio::task::block_in_place(|| {
-        job.into_label(&con.label.dimensions, &con.device_status.identification, code)
+        job.into_label(&con.label.dimensions, &con.device_status.identification)
     });
 
     let seq = label.print(1).await?;
@@ -151,7 +162,7 @@ async fn print_label(
 }
 
 impl Driver {
-    pub fn new() -> (Self, Connector) {
+    pub fn new(printer: &LabelPrinter) -> (Self, Connector) {
         // Aggressive bound on queue length.
         const BOUND: usize = 8;
 
@@ -166,6 +177,7 @@ impl Driver {
         let con = Connector {
             message: msg_recv,
             end: end_recv,
+            name: format!("@{}", printer.addr),
         };
 
         (driver, con)
@@ -182,6 +194,12 @@ impl Driver {
         if let Some(sender) = self.end.take() {
             let _ = sender.send(ShutdownToken);
         }
+    }
+}
+
+impl Connector {
+    pub fn with_name(self, name: String) -> Self {
+        Connector { name, ..self }
     }
 }
 
