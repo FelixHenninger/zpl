@@ -1,0 +1,15 @@
+{
+	"labels": {
+		"gx430t": {
+			"dimensions": {
+				"width": 70.0,
+				"height": 55.0,
+				"margin_left": 5.0,
+				"margin_right": 5.0,
+				"margin_top": 5.0,
+				"margin_bottom": 5.0
+			},
+			"addr": "192.168.178.86:9100"
+		}
+	}
+}
