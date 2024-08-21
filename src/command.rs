@@ -127,7 +127,7 @@ pub enum ZplCommand {
     RequestHostStatus,
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct HostStatus {
     pub string1: HostStatus1,
     pub string2: HostStatus2,
@@ -136,7 +136,7 @@ pub struct HostStatus {
     pub ram_status: HostRamStatus,
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct HostStatus1 {
     pub a_communication: u32,
     pub b_paper_out: bool,
@@ -151,7 +151,7 @@ pub struct HostStatus1 {
     pub l_temperature_high: bool,
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct HostStatus2 {
     pub m_settings: u8,
     pub o_head_up: bool,
@@ -165,20 +165,20 @@ pub struct HostStatus2 {
     pub w_number_graphics_stored: u32,
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct HostStatus3 {
     pub x_password: String,
     pub y_static_ram: bool,
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct HostRamStatus {
     pub total: u32,
     pub maximum_to_user: u64,
     pub available_to_user: u64,
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct HostIdentification {
     pub model: String,
     pub version: String,
