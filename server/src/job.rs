@@ -9,7 +9,8 @@ use crate::configuration::LabelDimensions;
 #[derive(Deserialize)]
 pub enum PrintJob {
     #[serde(rename = "svg")]
-    Svg(String),
+    #[non_exhaustive]
+    Svg { code: String },
 }
 
 impl PrintJob {
@@ -27,7 +28,7 @@ impl PrintJob {
         let mut label = Label::new(width, height, host.dpmm);
 
         match self {
-            PrintJob::Svg(code) => {
+            PrintJob::Svg { code } => {
                 label.content.push(LabelContent::Svg {
                     code: code.clone(),
                     x: Unit::Millimetres(dim.margin_left),
