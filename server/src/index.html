@@ -26,7 +26,7 @@
 				const data = await file.text();
 				const response = await fetch(`/api/v1/print/${printer}`, {
 					method: 'POST',
-					body: JSON.stringify({'svg': data}),
+					body: JSON.stringify({'svg': { 'code': data }}),
 					headers: {
 						"Content-Type": "application/json",
 					},
