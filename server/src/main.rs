@@ -1,4 +1,5 @@
 mod configuration;
+mod data_uri;
 mod job;
 mod physical_printer;
 mod spa;

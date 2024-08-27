@@ -4,13 +4,17 @@ use zpl::{
     label::{Label, LabelContent, Unit},
 };
 
-use crate::configuration::LabelDimensions;
+use crate::{configuration::LabelDimensions, data_uri::DataUri};
 
 #[derive(Deserialize)]
+#[non_exhaustive]
 pub enum PrintJob {
     #[serde(rename = "svg")]
     #[non_exhaustive]
     Svg { code: String },
+    #[serde(rename = "image")]
+    #[non_exhaustive]
+    Image { data: DataUri },
 }
 
 impl PrintJob {
@@ -18,7 +22,7 @@ impl PrintJob {
         &self,
         dim: &LabelDimensions,
         host: &HostIdentification,
-    ) -> Label {
+    ) -> anyhow::Result<Label> {
         let cwidth = (dim.width - dim.margin_left - dim.margin_right).max(0.0);
         let cheight =
             (dim.height - dim.margin_top - dim.margin_bottom).max(0.0);
@@ -37,8 +41,19 @@ impl PrintJob {
                     h: Unit::Millimetres(cheight),
                 });
             }
+            PrintJob::Image { data: uri } => {
+                let data = std::io::Cursor::new(uri.data.clone());
+                let img = image::io::Reader::new(data).decode()?;
+                label.content.push(LabelContent::Image {
+                    img,
+                    x: Unit::Millimetres(dim.margin_left),
+                    y: Unit::Millimetres(dim.margin_top),
+                    w: Unit::Millimetres(cwidth),
+                    h: Unit::Millimetres(cheight),
+                });
+            }
         }
 
-        label
+        Ok(label)
     }
 }
