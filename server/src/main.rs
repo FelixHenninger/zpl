@@ -64,16 +64,21 @@ async fn reload(State(state): State<Server>) -> &'static str {
 async fn push_job(
     State(state): State<Server>,
     Path(printer): Path<String>,
-    Json(payload): Json<job::PrintJob>,
-) -> &'static str {
+    Json(payload): Json<job::PrintApi>,
+) -> String {
     let inner = state.inner.read().await;
     let Some(queue) = inner.printer.get(&printer) else {
-        return "No such printer";
+        return "No such printer".to_string();
     };
 
-    match queue.driver.send_job(payload).await {
-        Ok(()) => "ok",
-        Err(err) => err,
+    let job = match tokio::task::block_in_place(|| payload.validate_as_job()) {
+        Ok(job) => job,
+        Err(error) => return error.to_string(),
+    };
+
+    match queue.driver.send_job(job).await {
+        Ok(()) => "ok".to_string(),
+        Err(err) => err.to_string(),
     }
 }
 
@@ -103,7 +108,6 @@ async fn main() {
         .route("/", get(spa::frontpage))
         .route("/index.html", get(spa::frontpage))
         .route("/static/style.css", get(spa::static_style_css))
-
         .route("/api/v1/info", get(status))
         .route("/api/v1/reload", post(reload))
         .route("/api/v1/print/:printer", post(push_job))

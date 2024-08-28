@@ -6,27 +6,58 @@
 <body>
 	<input id="zpl-api-printer" type="text" value="gx430t"></input>
 	<label for="zpl-api-file">Select SVG: </label>
-	<input id="zpl-api-file" type="file" accept=".svg,image/svg+xml"></input>
+	<input id="zpl-api-file" type="file" accept=".svg,image/svg+xml,.png,image/png"></input>
 	<button id="zpl-api-print" disabled>Print this file</button>
 	<p id="zpl-status"></p>
 	<script>
+		function encodeB64(buffer) {
+			// URL safe flavor.
+			ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+
+			const encoded_length = 0|(buffer.length / 3 * 4 + 0.9);
+			let o = Array.from('='.repeat(encoded_length));
+
+			for (let i = 0; i < buffer.length; i += 3) {
+				const s = buffer.slice(i, i+3);
+				const oidx = i / 3 * 4;
+				o[oidx+0] = ALPHABET[s[0] >> 2];
+				o[oidx+1] = ALPHABET[(s[0] & 0x03) << 4 | (s[1] >> 4)];
+				if(s.length > 1) o[oidx+2] = ALPHABET[(s[1] & 0x0f) << 2 | (s[2] >> 6)];
+				if(s.length > 2) o[oidx+3] = ALPHABET[(s[2] & 0x3f)];
+			}
+
+			return o.join('');
+		}
+
 		document.getElementById('zpl-api-file').oninput = function(ev) {
 			if (ev.target.files)
 				document.getElementById('zpl-api-print').disabled = false;
 		}
 		document.getElementById('zpl-api-print').onclick = function() {
 			const [file] = document.getElementById('zpl-api-file').files;
+
 			if (file == undefined) {
 				return;
 			}
 
 			const printer = document.getElementById('zpl-api-printer').value;
 
+			const on_type = {
+				['image/svg']: async function() {
+					return {'svg': { 'code': data } };
+				},
+				['image/png']: async function() {
+					const bytes = await file.arrayBuffer();
+					const uri = encodeB64(new Uint8Array(bytes));
+					return {'image': { 'data': `data:application/png;base64,${uri}` }};
+				},
+			};
+
 			(async function() {
 				const data = await file.text();
 				const response = await fetch(`/api/v1/print/${printer}`, {
 					method: 'POST',
-					body: JSON.stringify({'svg': { 'code': data }}),
+					body: JSON.stringify(await on_type[file.type]()),
 					headers: {
 						"Content-Type": "application/json",
 					},
