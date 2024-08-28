@@ -31,8 +31,8 @@ impl<'lt> Deserialize<'lt> for DataUri {
             ));
         };
 
-        let mut mime_part = &inner[..sep];
-        let data_part = &inner[..sep + 1];
+        let mut mime_part = &inner[5..sep];
+        let data_part = &inner[sep + 1..];
         let is_base64;
 
         if let Some((mime, options)) = mime_part.split_once(";") {
@@ -45,7 +45,7 @@ impl<'lt> Deserialize<'lt> for DataUri {
         let mime = mime_part.to_owned();
         let data = if is_base64 {
             match GeneralPurpose::new(
-                &base64::alphabet::STANDARD,
+                &base64::alphabet::URL_SAFE,
                 Default::default(),
             )
             .decode(data_part)
