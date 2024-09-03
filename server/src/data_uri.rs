@@ -35,7 +35,7 @@ impl<'lt> Deserialize<'lt> for DataUri {
         let data_part = &inner[sep + 1..];
         let is_base64;
 
-        if let Some((mime, options)) = mime_part.split_once(";") {
+        if let Some((mime, options)) = mime_part.split_once(';') {
             mime_part = mime;
             is_base64 = options.contains("base64");
         } else {
