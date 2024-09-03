@@ -1,3 +1,4 @@
+use log::error;
 use serde::Deserialize;
 use zpl::{
     command::HostIdentification,
@@ -41,7 +42,7 @@ impl PrintApi {
                             Some(image::ImageFormat::Jpeg)
                         }
                         other => {
-                            eprintln!("Unknown image format {other}");
+                            error!("Unknown image format {other}");
                             None
                         }
                     };
