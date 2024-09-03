@@ -161,7 +161,8 @@ async fn print_label(
 
     let seq = label.print(1).await?;
     // tokio::fs::write("/tmp/zpl-debug", seq.to_string()).await?;
-    let _ = con.printer.send(seq).await?;
+    con.printer.send(seq).await?;
+
     // No change in connection state, free to reuse it.
     Ok(con)
 }
