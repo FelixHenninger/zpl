@@ -51,6 +51,7 @@
           );
 
           shellHook = ''
+            export RUST_LOG=debug
           '';
         };
 

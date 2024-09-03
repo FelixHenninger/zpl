@@ -37,8 +37,8 @@ pub async fn make_label(
     use qrcode::{EcLevel, QrCode};
 
     let qr_contents = format!("https://urn.ccc.de/cert:{}", id).to_uppercase();
-    eprintln!("Content: {:?}", qr_contents);
-    eprintln!("Content length: {:?}", qr_contents.len());
+    info!("Content: {:?}", qr_contents);
+    info!("Content length: {:?}", qr_contents.len());
 
     let qr = QrCode::with_error_correction_level(
         qr_contents, //
