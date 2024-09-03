@@ -64,6 +64,7 @@
             // {
               inherit (craneLib.crateNameFromCargoToml { src = ./server; }) pname version;
               cargoExtraArgs = "-p zpl-server";
+              meta.mainProgram = "zpl-server";
             }
           );
         in
@@ -100,6 +101,72 @@
               };
             };
           };
+
+          checks = lib.optionalAttrs pkgs.stdenv.isLinux {
+            nixos-test = pkgs.nixosTest {
+              name = "zpl-server-test";
+              nodes.machine = {
+                nixpkgs.system = system;
+                imports = [ inputs.self.nixosModules.default ];
+                services.zpl-server.enable = true;
+              };
+              testScript = ''
+                machine.wait_for_unit("default.target")
+                machine.wait_for_open_port(3000)
+              '';
+            };
+          };
         };
+
+      flake = {
+        nixosModules.default =
+          {
+            config,
+            pkgs,
+            lib,
+            ...
+          }:
+          let
+            cfg = config.services.zpl-server;
+            json = pkgs.formats.json { };
+          in
+          {
+            options = {
+              services.zpl-server = {
+                enable = lib.mkEnableOption "Zebra printer service";
+                package = lib.mkOption {
+                  type = lib.types.package;
+                  default = inputs.self.packages.${config.nixpkgs.system}.server;
+                };
+                listen = lib.mkOption {
+                  type = lib.types.str;
+                  default = "localhost:3000";
+                };
+                settings = lib.mkOption {
+                  type = lib.types.attrsOf json.type;
+                  default = { };
+                };
+              };
+            };
+
+            config = lib.mkIf cfg.enable {
+              systemd.services.zpl-server = {
+                description = "Zebra printer service";
+                wantedBy = [ "multi-user.target" ];
+                environment = {
+                  ZPL_LISTEN = cfg.listen;
+                  ZPL_CONFIGURATION = json.generate "zpl-server.json" cfg.settings;
+                  RUST_LOG = "info";
+                };
+                serviceConfig = {
+                  ExecStart = "${lib.getExe cfg.package}";
+                  DynamicUser = true;
+                  Restart = "always";
+                  RestartSec = "2s";
+                };
+              };
+            };
+          };
+      };
     };
 }
