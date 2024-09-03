@@ -1,5 +1,6 @@
 /// Talk to the device.
 use crate::command;
+use log::debug;
 use tokio::{
     self,
     io::{self, AsyncWriteExt},
@@ -151,7 +152,7 @@ impl ZplPrinter {
         let mut buf = vec![];
         for _ in 0..response_lines {
             let line = read::line_with(&mut buf, &mut self.connection).await?;
-            eprintln!("{}", String::from_utf8_lossy(&line.string));
+            debug!("{}", String::from_utf8_lossy(&line.string));
         }
 
         if response_lines == 0 {
@@ -173,7 +174,7 @@ fn split_line<const N: usize>(line: &[u8], data: [&mut dyn FromField; N]) {
         return;
     };
 
-    eprintln!("{line}");
+    debug!("{line}");
     for (st, field) in line.split(',').zip(data) {
         field.fill(st);
     }
