@@ -6,12 +6,12 @@ mod physical_printer;
 mod spa;
 
 use crate::config::Config;
-use clap::Parser;
 use axum::{
     extract::{Path, State},
     routing::{get, post},
     Json, Router,
 };
+use clap::Parser;
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::{sync::RwLock, task::JoinSet};
@@ -118,7 +118,7 @@ async fn main() {
         .route("/api/v1/reload", post(reload))
         .route("/api/v1/print/:printer", post(push_job))
         .with_state(state);
-    
+
     let listener = tokio::net::TcpListener::bind(config.listen).await.unwrap();
     axum::serve(listener, app).await.unwrap()
 }

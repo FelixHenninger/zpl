@@ -69,11 +69,13 @@ impl<'lt> Deserialize<'lt> for DataUri {
 
 #[test]
 fn data_uri_decoding() {
-    let uri: DataUri = serde_json::from_str("\"data:image/svg,<svg></svg>\"").unwrap();
+    let uri: DataUri =
+        serde_json::from_str("\"data:image/svg,<svg></svg>\"").unwrap();
     assert_eq!(uri.mime, "image/svg");
     assert_eq!(*uri.data, *b"<svg></svg>");
 
-    let uri: DataUri = serde_json::from_str("\"data:application/png;base64,AEAQ\"").unwrap();
+    let uri: DataUri =
+        serde_json::from_str("\"data:application/png;base64,AEAQ\"").unwrap();
     assert_eq!(uri.mime, "application/png");
     assert_eq!(*uri.data, *b"\x00\x40\x10");
 }
