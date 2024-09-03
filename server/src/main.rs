@@ -1,9 +1,12 @@
+mod config;
 mod configuration;
 mod data_uri;
 mod job;
 mod physical_printer;
 mod spa;
 
+use crate::config::Config;
+use clap::Parser;
 use axum::{
     extract::{Path, State},
     routing::{get, post},
@@ -100,7 +103,10 @@ async fn status(State(state): State<Server>) -> String {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
-    let state = Server::new("server.json".into());
+    env_logger::init();
+
+    let config = Config::parse();
+    let state = Server::new(config.configuration.into());
 
     reload(State(state.clone())).await;
 
@@ -112,8 +118,8 @@ async fn main() {
         .route("/api/v1/reload", post(reload))
         .route("/api/v1/print/:printer", post(push_job))
         .with_state(state);
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    
+    let listener = tokio::net::TcpListener::bind(config.listen).await.unwrap();
     axum::serve(listener, app).await.unwrap()
 }
 

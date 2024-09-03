@@ -2,6 +2,7 @@ use super::ShutdownToken;
 use crate::configuration::LabelPrinter;
 use crate::job::PrintJob;
 
+use log::{debug, error, info};
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinSet,
@@ -80,7 +81,7 @@ impl PhysicalPrinter {
 
         loop {
             if label_being_printed.is_empty() && active.is_none() {
-                eprintln!(
+                info!(
                     "[{}]: Connecting to printer at {}",
                     con.name, self.label.addr
                 );
@@ -91,9 +92,9 @@ impl PhysicalPrinter {
                 label_being_printed.spawn(async move {
                     let mut printer =
                         ZplPrinter::with_address(label.addr).await?;
-                    eprintln!("[{}]: Connection opened", name);
+                    debug!("[{}]: Connection opened", name);
                     let device_status = printer.request_device_status().await?;
-                    eprintln!("[{}]: Device status up", name);
+                    info!("[{}]: Device status up", name);
 
                     status
                         .is_up
@@ -113,16 +114,16 @@ impl PhysicalPrinter {
                 success = label_being_printed.join_next(), if !label_being_printed.is_empty() => {
                     match success {
                         Some(Ok(Ok(ready))) => {
-                            eprintln!("[{}]: Printer ready for label at {}", con.name, self.label.addr);
+                            info!("[{}]: Printer ready for label at {}", con.name, self.label.addr);
                             active = Some(ready);
                         },
                         Some(Ok(Err(err))) => {
-                            eprintln!("[{}]: {:?}", con.name, err);
-                            eprintln!("[{}]: Retry in {:?}", con.name, retry_fail);
+                            debug!("[{}]: {:?}", con.name, err);
+                            debug!("[{}]: Retry in {:?}", con.name, retry_fail);
                             tokio::time::sleep(retry_fail).await;
                         }
                         Some(Err(err)) => {
-                            eprintln!("[{}]: {:?}", con.name,  err);
+                            error!("[{}]: {:?}", con.name,  err);
                         }
                         None => unreachable!(),
                     }
@@ -131,7 +132,7 @@ impl PhysicalPrinter {
                     match end {
                         Ok(ShutdownToken) => {},
                         Err(recv_error) => {
-                            eprintln!("[{}]: {recv_error:?}", con.name);
+                            error!("[{}]: {recv_error:?}", con.name);
                         }
                     }
 
