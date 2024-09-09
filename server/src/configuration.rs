@@ -1,19 +1,21 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use std::{collections::HashMap, net::SocketAddr, path::Path};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Configuration {
     pub labels: HashMap<String, LabelPrinter>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct LabelPrinter {
     pub dimensions: LabelDimensions,
     pub addr: SocketAddr,
+    #[serde(default)]
+    pub display_name: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct LabelDimensions {
     pub width: f32,
     pub height: f32,
