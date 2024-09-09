@@ -1,6 +1,7 @@
-input {
+.zpl-input-newline {
 	display: block;
 }
+
 #zpl-api-print {
 	display: block;
 }

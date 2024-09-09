@@ -2,14 +2,15 @@
 	"labels": {
 		"gx430t": {
 			"dimensions": {
-				"width": 76.0,
-				"height": 50.8,
+				"width": 51.0,
+				"height": 51.0,
 				"margin_left": 1.0,
 				"margin_right": 1.0,
 				"margin_top": 1.0,
 				"margin_bottom": 1.0
 			},
-			"addr": "192.168.178.86:9100"
+			"addr": "192.168.178.188:9100",
+			"display_name": "Porkhy"
 		}
 	}
 }

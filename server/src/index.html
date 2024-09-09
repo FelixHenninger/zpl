@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html>
 <head>
+	<meta charset="utf-8">
 	<link rel="stylesheet" type="text/css" href="static/style.css"/>
 </head>
 <body>
-	<input id="zpl-api-printer" type="text" value="gx430t"></input>
-	<label for="zpl-api-file">Select SVG: </label>
-	<input id="zpl-api-file" type="file" accept=".svg,image/svg+xml,.png,image/png"></input>
+	<label for="zpl-api-file">Select Printer: </label>
+	<input id="zpl-api-printer" class="zpl-input-newline" type="text" value="gx430t"></input>
+	<label for="zpl-api-file">Select image (SVG or PNG): </label>
+	<input id="zpl-api-file"class="zpl-input-newline"  type="file" accept=".svg,image/svg+xml,.png,image/png"></input>
 	<button id="zpl-api-print" disabled>Print this file</button>
 	<p id="zpl-status"></p>
 	<script>
@@ -33,6 +35,7 @@
 			if (ev.target.files)
 				document.getElementById('zpl-api-print').disabled = false;
 		}
+
 		document.getElementById('zpl-api-print').onclick = function() {
 			const [file] = document.getElementById('zpl-api-file').files;
 
@@ -66,6 +69,26 @@
 				document.getElementById('zpl-status').innerText = await response.text();
 			})();
 		}
+
+		window.addEventListener('load', async () => {
+			const response = (await fetch("/api/v1/info"));
+			const info = await response.json();
+
+			const options = Object.entries(info)
+				.map(([key, value]) => {
+					let option = document.createElement('option');
+					option.value = key;
+					option.innerText = value.display_name || key;
+					option.innerText += ` ${value.printer_label.width}mm × ${value.printer_label.height}mm`;
+					return option.outerHTML;
+				})
+				.join('');
+
+			const selector = document.getElementById('zpl-api-printer');
+			selector.outerHTML = `<select id="zpl-api-printer" class="zpl-input-newline" type="text">${options}</select>`;
+			// selector.replaceChildren(..options);
+
+		});
 	</script>
 </body>
 </html>
