@@ -1,11 +1,12 @@
-mod config;
+mod app;
 mod configuration;
 mod data_uri;
 mod job;
 mod physical_printer;
 mod spa;
 
-use crate::config::Config;
+use crate::app::App;
+
 use axum::{
     extract::{Path, State},
     routing::{get, post},
@@ -105,7 +106,7 @@ async fn status(State(state): State<Server>) -> String {
 async fn main() {
     env_logger::init();
 
-    let config = Config::parse();
+    let config = App::parse();
     let state = Server::new(config.configuration.into());
 
     reload(State(state.clone())).await;
