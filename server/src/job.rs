@@ -8,8 +8,20 @@ use zpl::{
 use crate::{configuration::LabelDimensions, data_uri::DataUri};
 
 #[derive(Deserialize)]
+pub struct PrintApi {
+    /// A requirement for the label dimensions.
+    ///
+    /// The server is to validate that the printer addressed with this job has the same label
+    /// dimensions as given. This lets us mitigate a 'race condition' where the printer is
+    /// physically reconfigured and reloaded without it being given a new name.
+    pub dimensions: Option<LabelDimensions>,
+    #[serde(flatten)]
+    pub kind: PrintApiKind,
+}
+
+#[derive(Deserialize)]
 #[non_exhaustive]
-pub enum PrintApi {
+pub enum PrintApiKind {
     #[serde(rename = "svg")]
     #[non_exhaustive]
     Svg { code: String },
@@ -26,10 +38,10 @@ pub enum PrintJob {
 
 impl PrintApi {
     pub fn validate_as_job(&self) -> anyhow::Result<PrintJob> {
-        Ok(match self {
-            // FIXME: should validate here.
-            PrintApi::Svg { code } => PrintJob::Svg { code: code.clone() },
-            PrintApi::Image { data: uri } => {
+        Ok(match &self.kind {
+            // FIXME: should validate SVG here.
+            PrintApiKind::Svg { code } => PrintJob::Svg { code: code.clone() },
+            PrintApiKind::Image { data: uri } => {
                 let data = std::io::Cursor::new(uri.data.clone());
                 let image = {
                     let mut reader = image::io::Reader::new(data);
