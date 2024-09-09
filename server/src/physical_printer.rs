@@ -3,6 +3,9 @@ use crate::configuration::LabelPrinter;
 use crate::job::PrintJob;
 
 use log::{debug, error, info};
+
+use serde::Serialize;
+
 use tokio::{
     sync::{mpsc, oneshot},
     task::JoinSet,
@@ -30,9 +33,23 @@ struct PrinterStatus {
     is_up: AtomicBool,
 }
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct StatusInformation {
+    display_name: Option<String>,
+    printer_label: PrinterInformation,
     is_up: bool,
+}
+
+struct PrinterInformation(Arc<LabelPrinter>);
+
+impl Serialize for PrinterInformation {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // Only the dimensions are public information.
+        self.0.dimensions.serialize(serializer)
+    }
 }
 
 pub struct Driver {
@@ -65,9 +82,12 @@ impl PhysicalPrinter {
         }
     }
 
+    /// Get the serializable public status information for this printer.
     pub fn status(&self) -> StatusInformation {
         StatusInformation {
             is_up: self.status.is_up.load(Ordering::Relaxed),
+            display_name: self.label.display_name.clone(),
+            printer_label: PrinterInformation(self.label.clone()),
         }
     }
 
