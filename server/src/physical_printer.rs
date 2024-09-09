@@ -1,6 +1,5 @@
 use super::ShutdownToken;
-use crate::configuration::LabelPrinter;
-use crate::job::PrintJob;
+use crate::{configuration, job::PrintJob};
 
 use log::{debug, error, info};
 
@@ -18,13 +17,18 @@ use std::sync::{
     Arc,
 };
 
+pub struct LabelPrinter {
+    config: Arc<configuration::LabelPrinter>,
+    label: Arc<configuration::Label>,
+}
+
 /// A unique physical printer device.
 ///
 /// We assume to operate it as an owner, when a connection to it can be made. This is a
 /// pre-configured builder structure for an operating connection.
 #[derive(Clone)]
 pub struct PhysicalPrinter {
-    label: Arc<LabelPrinter>,
+    target: Arc<LabelPrinter>,
     status: Arc<PrinterStatus>,
 }
 
@@ -48,7 +52,7 @@ impl Serialize for PrinterInformation {
         S: serde::Serializer,
     {
         // Only the dimensions are public information.
-        self.0.dimensions.serialize(serializer)
+        self.0.label.dimensions.serialize(serializer)
     }
 }
 
@@ -69,15 +73,28 @@ pub enum Task {
 }
 
 struct ActiveConnection {
-    label: Arc<LabelPrinter>,
+    target: Arc<LabelPrinter>,
     printer: ZplPrinter,
     device_status: HostStatus,
+}
+
+impl LabelPrinter {
+    pub fn new(
+        cfg: &configuration::Configuration,
+        printer: Arc<configuration::LabelPrinter>,
+    ) -> Option<Self> {
+        let label = cfg.labels.get(&printer.label)?;
+        Some(LabelPrinter {
+            config: printer,
+            label: label.0.clone(),
+        })
+    }
 }
 
 impl PhysicalPrinter {
     pub fn new(label: LabelPrinter) -> Self {
         PhysicalPrinter {
-            label: Arc::new(label),
+            target: Arc::new(label),
             status: Arc::default(),
         }
     }
@@ -86,8 +103,8 @@ impl PhysicalPrinter {
     pub fn status(&self) -> StatusInformation {
         StatusInformation {
             is_up: self.status.is_up.load(Ordering::Relaxed),
-            display_name: self.label.display_name.clone(),
-            printer_label: PrinterInformation(self.label.clone()),
+            display_name: self.target.config.display_name.clone(),
+            printer_label: PrinterInformation(self.target.clone()),
         }
     }
 
@@ -103,15 +120,15 @@ impl PhysicalPrinter {
             if label_being_printed.is_empty() && active.is_none() {
                 info!(
                     "[{}]: Connecting to printer at {}",
-                    con.name, self.label.addr
+                    con.name, self.target.config.addr
                 );
-                let label = self.label.clone();
+                let label = self.target.clone();
                 let status = self.status.clone();
                 let name = con.name.clone();
 
                 label_being_printed.spawn(async move {
                     let mut printer =
-                        ZplPrinter::with_address(label.addr).await?;
+                        ZplPrinter::with_address(label.config.addr).await?;
                     debug!("[{}]: Connection opened", name);
                     let device_status = printer.request_device_status().await?;
                     info!("[{}]: Device status up", name);
@@ -125,7 +142,7 @@ impl PhysicalPrinter {
                     Ok(ActiveConnection {
                         printer,
                         device_status,
-                        label,
+                        target: label,
                     })
                 });
             }
@@ -134,7 +151,7 @@ impl PhysicalPrinter {
                 success = label_being_printed.join_next(), if !label_being_printed.is_empty() => {
                     match success {
                         Some(Ok(Ok(ready))) => {
-                            info!("[{}]: Printer ready for label at {}", con.name, self.label.addr);
+                            info!("[{}]: Printer ready for label at {}", con.name, self.target.config.addr);
                             active = Some(ready);
                         },
                         Some(Ok(Err(err))) => {
@@ -176,7 +193,10 @@ async fn print_label(
     job: PrintJob,
 ) -> anyhow::Result<ActiveConnection> {
     let label = tokio::task::block_in_place(|| {
-        job.into_label(&con.label.dimensions, &con.device_status.identification)
+        job.into_label(
+            &con.target.label.dimensions,
+            &con.device_status.identification,
+        )
     });
 
     let seq = label.print(1).await?;
@@ -188,7 +208,7 @@ async fn print_label(
 }
 
 impl Driver {
-    pub fn new(printer: &LabelPrinter) -> (Self, Connector) {
+    pub fn new(target: &LabelPrinter) -> (Self, Connector) {
         // Aggressive bound on queue length.
         const BOUND: usize = 8;
 
@@ -203,7 +223,7 @@ impl Driver {
         let con = Connector {
             message: msg_recv,
             end: end_recv,
-            name: format!("@{}", printer.addr),
+            name: format!("@{}", target.config.addr),
         };
 
         (driver, con)

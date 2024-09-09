@@ -35,12 +35,15 @@ struct PrintQueue {
     driver: physical_printer::Driver,
 }
 
-async fn reload(State(state): State<Server>) -> &'static str {
-    let Ok(configuration) = ({
+async fn reload(State(state): State<Server>) -> String {
+    let configuration = match {
         let state = state.inner.read().await;
         configuration::Configuration::from_file(&state.configuration).await
-    }) else {
-        return "Fail";
+    } {
+        Ok(cfg) => cfg,
+        Err(error) => {
+            return error.to_string();
+        }
     };
 
     let mut state = state.inner.write().await;
@@ -51,9 +54,16 @@ async fn reload(State(state): State<Server>) -> &'static str {
     // should be dropped by themselves? Maybe we should just shove them into the background.
     while let Some(_next) = state.active_printer.join_next().await {}
 
-    for (name, configuration) in configuration.labels {
-        let (driver, con) = physical_printer::Driver::new(&configuration);
-        let printer = physical_printer::PhysicalPrinter::new(configuration);
+    for (name, printer) in &configuration.printers {
+        let Some(printer) = physical_printer::LabelPrinter::new(
+            &configuration,
+            printer.0.clone(),
+        ) else {
+            continue;
+        };
+
+        let (driver, con) = physical_printer::Driver::new(&printer);
+        let printer = physical_printer::PhysicalPrinter::new(printer);
 
         let con = con.with_name(name.clone());
         state.active_printer.spawn(printer.clone().drive(con));
@@ -62,7 +72,7 @@ async fn reload(State(state): State<Server>) -> &'static str {
         state.printer.insert(name.clone(), queue);
     }
 
-    "Success"
+    "Success".to_string()
 }
 
 async fn push_job(
@@ -109,7 +119,7 @@ async fn main() {
     let config = App::parse();
     let state = Server::new(config.configuration.into());
 
-    reload(State(state.clone())).await;
+    assert_eq!(reload(State(state.clone())).await, "Success");
 
     let app = Router::new()
         .route("/", get(spa::frontpage))
