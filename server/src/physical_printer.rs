@@ -1,5 +1,5 @@
 use super::ShutdownToken;
-use crate::{configuration, job::PrintJob};
+use crate::{configuration, job};
 
 use log::{debug, error, info};
 
@@ -69,7 +69,7 @@ pub struct Connector {
 }
 
 pub enum Task {
-    Job(PrintJob),
+    Job(job::PrintJob),
 }
 
 struct ActiveConnection {
@@ -105,6 +105,25 @@ impl PhysicalPrinter {
             is_up: self.status.is_up.load(Ordering::Relaxed),
             display_name: self.target.config.display_name.clone(),
             printer_label: PrinterInformation(self.target.clone()),
+        }
+    }
+
+    pub async fn verify_label(
+        &self,
+        payload: &job::PrintApi,
+    ) -> Result<job::PrintJob, String> {
+        if let Some(dimensions) = &payload.dimensions {
+            if !dimensions.approx_cmp(&self.target.label.dimensions) {
+                return Err(
+                    "Dimension mismatch, check physical label configuration"
+                        .to_string(),
+                );
+            }
+        };
+
+        match tokio::task::block_in_place(|| payload.validate_as_job()) {
+            Ok(job) => Ok(job),
+            Err(error) => return Err(error.to_string()),
         }
     }
 
@@ -190,7 +209,7 @@ impl PhysicalPrinter {
 
 async fn print_label(
     mut con: ActiveConnection,
-    job: PrintJob,
+    job: job::PrintJob,
 ) -> anyhow::Result<ActiveConnection> {
     let label = tokio::task::block_in_place(|| {
         job.into_label(
@@ -229,7 +248,10 @@ impl Driver {
         (driver, con)
     }
 
-    pub async fn send_job(&self, job: PrintJob) -> Result<(), &'static str> {
+    pub async fn send_job(
+        &self,
+        job: job::PrintJob,
+    ) -> Result<(), &'static str> {
         match self.message.try_send(Task::Job(job)) {
             Ok(_) => Ok(()),
             Err(_) => Err("failed to queue"),

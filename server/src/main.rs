@@ -85,9 +85,9 @@ async fn push_job(
         return "No such printer".to_string();
     };
 
-    let job = match tokio::task::block_in_place(|| payload.validate_as_job()) {
+    let job = match queue.printer.verify_label(&payload).await {
         Ok(job) => job,
-        Err(error) => return error.to_string(),
+        Err(err) => return err,
     };
 
     match queue.driver.send_job(job).await {
