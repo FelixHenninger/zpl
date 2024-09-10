@@ -1,8 +1,10 @@
 use log::error;
 use serde::Deserialize;
+
 use zpl::{
     command::HostIdentification,
     label::{Label, LabelContent, Unit},
+    resvg::{usvg, usvg::fontdb},
 };
 
 use crate::{configuration::LabelDimensions, data_uri::DataUri};
@@ -30,17 +32,31 @@ pub enum PrintApiKind {
     Image { data: DataUri },
 }
 
+/// The representation after ingestion by the API. We try to avoid IO, in particular fallible IO,
+/// after that representation has been reached. This reduces the number of late errors that must
+/// wait on a device to process the job to be noticed.
 #[non_exhaustive]
 pub enum PrintJob {
-    Svg { code: String },
+    Svg { tree: usvg::Tree },
     Image { image: image::DynamicImage },
 }
 
 impl PrintApi {
     pub fn validate_as_job(&self) -> anyhow::Result<PrintJob> {
         Ok(match &self.kind {
-            // FIXME: should validate SVG here.
-            PrintApiKind::Svg { code } => PrintJob::Svg { code: code.clone() },
+            PrintApiKind::Svg { code } => {
+                // FIXME: do this once.
+                let mut db = fontdb::Database::new();
+                db.load_system_fonts();
+
+                let options = usvg::Options {
+                    fontdb: db.into(),
+                    ..Default::default()
+                };
+
+                let rtree = usvg::Tree::from_str(&code, &options)?;
+                PrintJob::Svg { tree: rtree }
+            }
             PrintApiKind::Image { data: uri } => {
                 let data = std::io::Cursor::new(uri.data.clone());
                 let image = {
@@ -87,9 +103,9 @@ impl PrintJob {
         let mut label = Label::new(width, height, host.dpmm);
 
         match self {
-            PrintJob::Svg { code } => {
-                label.content.push(LabelContent::Svg {
-                    code: code.clone(),
+            PrintJob::Svg { tree } => {
+                label.content.push(LabelContent::SvgTree {
+                    tree,
                     x: Unit::Millimetres(dim.margin_left),
                     y: Unit::Millimetres(dim.margin_top),
                     w: Unit::Millimetres(cwidth),

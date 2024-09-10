@@ -27,7 +27,16 @@ pub fn render_svg(
         fontdb: Arc::new(db),
         ..Default::default()
     };
+
     let rtree = Tree::from_str(&svg_data, &options).ok().unwrap();
+    render_svg_tree(rtree, canvas_px_width, canvas_px_height)
+}
+
+pub fn render_svg_tree(
+    rtree: Tree,
+    canvas_px_width: u32,
+    canvas_px_height: u32,
+) -> Result<::image::DynamicImage, Error> {
     let rtree_size = rtree.size();
 
     let mut pixmap = Pixmap::new(canvas_px_width, canvas_px_height).unwrap();
@@ -51,7 +60,7 @@ pub fn render_svg(
         &mut pixmap.as_mut(),
     );
 
-    // Unwrapping here since this must succeed.
+    // Unwrapping here since this must succeed, if resvg is correct.
     let png = pixmap.encode_png().unwrap();
 
     let image = image::io::Reader::with_format(
