@@ -10,7 +10,10 @@ use tokio::{
     task::JoinSet,
 };
 
-use zpl::{command::HostStatus, device::ZplPrinter};
+use zpl::{
+    command::{HostIdentification, HostStatus},
+    device::ZplPrinter,
+};
 
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -44,6 +47,8 @@ pub struct StatusInformation {
     is_up: bool,
 }
 
+type ConnectionHandled = anyhow::Result<Option<ActiveConnection>>;
+
 struct PrinterInformation(Arc<LabelPrinter>);
 
 impl Serialize for PrinterInformation {
@@ -76,6 +81,12 @@ struct ActiveConnection {
     target: Arc<LabelPrinter>,
     printer: ZplPrinter,
     device_status: HostStatus,
+}
+
+struct SimulationParameter {
+    wait_time: std::time::Duration,
+    dpmm: Option<u32>,
+    target: Arc<LabelPrinter>,
 }
 
 impl LabelPrinter {
@@ -128,7 +139,7 @@ impl PhysicalPrinter {
     }
 
     pub async fn drive(self, con: Connector) {
-        let mut label_being_printed: JoinSet<anyhow::Result<ActiveConnection>> =
+        let mut label_being_printed: JoinSet<ConnectionHandled> =
             JoinSet::new();
         let mut con = con;
         let mut active: Option<ActiveConnection> = None;
@@ -147,7 +158,7 @@ impl PhysicalPrinter {
         loop {
             if label_being_printed.is_empty()
                 && active.is_none()
-                && self.target.config.is_virtual.is_none()
+                && self.target.config.virtualization.is_connnected()
             {
                 interval_reconnect.tick().await;
 
@@ -168,6 +179,7 @@ impl PhysicalPrinter {
                 label_being_printed.spawn(async move {
                     let mut printer =
                         ZplPrinter::with_address(label.config.addr).await?;
+
                     debug!("[{}]: Connection opened", name);
                     let device_status = printer.request_device_status().await?;
                     info!("[{}]: Device status up", name);
@@ -178,11 +190,11 @@ impl PhysicalPrinter {
 
                     let device_status = device_status.clone();
 
-                    Ok(ActiveConnection {
+                    Ok(Some(ActiveConnection {
                         printer,
                         device_status,
                         target: label,
-                    })
+                    }))
                 });
             }
 
@@ -192,8 +204,11 @@ impl PhysicalPrinter {
                 success = label_being_printed.join_next(), if is_connection_busy => {
                     match success {
                         Some(Ok(Ok(ready))) => {
-                            info!("[{}]: Printer ready for label at {}", con.name, self.target.config.addr);
-                            active = Some(ready);
+                            if ready.is_some() {
+                                info!("[{}]: Ready for next label in a few", con.name);
+                            }
+
+                            active = ready;
                         },
                         Some(Ok(Err(err))) => {
                             warn!("[{}]: {:?}", con.name, err);
@@ -223,11 +238,33 @@ impl PhysicalPrinter {
                         break;
                     };
 
-                    if let Some(configuration::LabelVirtualization::DropJobs { wait_time }) = self.target.config.is_virtual {
-                        label_being_printed.spawn(simulation_label(wait_time, print_job));
-                    } else {
+                    match self.target.config.virtualization {
+                    configuration::LabelVirtualization::DropJobs { wait_time } => {
+                        let con = active.take();
+
+                        let simulation = SimulationParameter {
+                            wait_time,
+                            dpmm: None,
+                            target: self.target.clone(),
+                        };
+
+                        label_being_printed.spawn(simulation_label(con, print_job, simulation));
+                    }
+                    configuration::LabelVirtualization::ZplOnly { wait_time, dpmm } => {
+                        let con = active.take();
+
+                        let simulation = SimulationParameter {
+                            wait_time,
+                            dpmm,
+                            target: self.target.clone(),
+                        };
+
+                        label_being_printed.spawn(simulation_label(con, print_job, simulation));
+                    }
+                    configuration::LabelVirtualization::Physical => {
                         let active = active.take().expect("Connection either spawned or still active");
                         label_being_printed.spawn(print_label(active, print_job));
+                    }
                     }
                 }
             )
@@ -238,7 +275,7 @@ impl PhysicalPrinter {
 async fn print_label(
     mut con: ActiveConnection,
     job: job::PrintJob,
-) -> anyhow::Result<ActiveConnection> {
+) -> ConnectionHandled {
     let label = tokio::task::block_in_place(|| {
         job.into_label(
             &con.target.label.dimensions,
@@ -251,16 +288,45 @@ async fn print_label(
     con.printer.send(seq).await?;
 
     // No change in connection state, free to reuse it.
-    Ok(con)
+    Ok(Some(con))
 }
 
 async fn simulation_label(
-    wait_time: std::time::Duration,
+    con: Option<ActiveConnection>,
     job: job::PrintJob,
-) -> anyhow::Result<ActiveConnection> {
-    tokio::time::sleep(wait_time).await;
-    let _ = job;
-    anyhow::bail!("dropped label job as complete");
+    sim: SimulationParameter,
+) -> ConnectionHandled {
+    let SimulationParameter {
+        wait_time,
+        dpmm,
+        target,
+    } = sim;
+
+    // Start the time for our operation, do not depend on conversion itself.
+    let target_time = tokio::time::sleep(wait_time);
+
+    let identification = if let Some(con) = &con {
+        con.device_status.identification.clone()
+    } else {
+        let mut host = HostIdentification::default();
+
+        if let Some(dpmm) = dpmm {
+            host.dpmm = dpmm;
+        } else {
+            warn!("No dpmm configured, nor discovered from the printer. Using 8 dpmm");
+            host.dpmm = 8;
+        }
+
+        host
+    };
+
+    let _into_label = tokio::task::block_in_place(|| {
+        job.into_label(&target.label.dimensions, &identification);
+    });
+
+    target_time.await;
+
+    Ok(con)
 }
 
 impl Driver {
