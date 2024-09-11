@@ -23,10 +23,24 @@ pub struct PrinterIdentifier(pub String);
 
 #[derive(Deserialize, Serialize)]
 pub struct LabelPrinter {
+    /// How to refer to this printer in the server.
     pub label: LabelIdentifier,
+
+    /// How to reach this printer?
     pub addr: SocketAddr,
+
+    /// How to refer to this printer for the user.
     #[serde(default)]
     pub display_name: Option<String>,
+
+    #[serde(default)]
+    /// If this is not a physical printer, how do we handle it?
+    pub is_virtual: Option<LabelVirtualization>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub enum LabelVirtualization {
+    DropJobs { wait_time: std::time::Duration },
 }
 
 #[derive(Deserialize, Serialize)]
