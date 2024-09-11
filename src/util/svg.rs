@@ -50,8 +50,14 @@ pub fn render_svg_tree(
 
     let offset_x = (canvas_px_width as f32 - image_px_width) / 2.0;
     let offset_y = (canvas_px_height as f32 - image_px_height) / 2.0;
-    assert!(offset_x >= 0.0);
-    assert!(offset_y >= 0.0);
+
+    if !(offset_x >= 0.0) {
+        log::warn!("SVG Rendering Offset X non-positive: {offset_x:?}");
+    }
+
+    if !(offset_y >= 0.0) {
+        log::warn!("SVG Rendering Offset Y non-positive: {offset_y:?}");
+    }
 
     resvg::render(
         &rtree,
