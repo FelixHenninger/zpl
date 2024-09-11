@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, path::Path, sync::Arc};
 
 #[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Configuration {
     pub labels: HashMap<LabelIdentifier, Arc<Label>>,
     pub printers: HashMap<String, Arc<LabelPrinter>>,
@@ -22,6 +23,7 @@ pub struct LabelIdentifier(pub String);
 pub struct PrinterIdentifier(pub String);
 
 #[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct LabelPrinter {
     /// How to refer to this printer in the server.
     pub label: LabelIdentifier,
@@ -35,12 +37,22 @@ pub struct LabelPrinter {
 
     #[serde(default)]
     /// If this is not a physical printer, how do we handle it?
-    pub is_virtual: Option<LabelVirtualization>,
+    pub virtualization: LabelVirtualization,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum LabelVirtualization {
+    /// Connect to the printer, and print jobs.
+    #[default]
+    Physical,
+    /// Instead of handling jobs into labels, just wait. Still, create a connection to the printer.
     DropJobs { wait_time: std::time::Duration },
+    /// FIXME: not sure, don't rely on a connection at all but still drop jobs.
+    ZplOnly {
+        wait_time: std::time::Duration,
+        dpmm: Option<u32>,
+    },
 }
 
 #[derive(Deserialize, Serialize)]
@@ -100,6 +112,16 @@ impl LabelDimensions {
             && to_5digits_eq(margin_right, other.margin_right)
             && to_5digits_eq(margin_top, other.margin_top)
             && to_5digits_eq(margin_bottom, other.margin_bottom)
+    }
+}
+
+impl LabelVirtualization {
+    pub fn is_connnected(&self) -> bool {
+        matches!(
+            self,
+            LabelVirtualization::Physical
+                | LabelVirtualization::DropJobs { .. },
+        )
     }
 }
 
