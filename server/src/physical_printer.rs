@@ -86,7 +86,7 @@ impl LabelPrinter {
         let label = cfg.labels.get(&printer.label)?;
         Some(LabelPrinter {
             config: printer,
-            label: label.0.clone(),
+            label: label.clone(),
         })
     }
 }
