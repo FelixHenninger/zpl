@@ -46,21 +46,28 @@
 			const printer = document.getElementById('zpl-api-printer').value;
 
 			const on_type = {
-				['image/svg']: async function() {
+				['image/svg']: async function(file) {
+					const data = await file.text();
 					return {'svg': { 'code': data } };
 				},
-				['image/png']: async function() {
+				['image/png']: async function(file) {
 					const bytes = await file.arrayBuffer();
 					const uri = encodeB64(new Uint8Array(bytes));
 					return {'image': { 'data': `data:application/png;base64,${uri}` }};
 				},
 			};
 
+			on_type['image/svg+xml'] = on_type['image/svg'];
+
+			const error_reporter = async function(file) {
+				console.log(`Can't understand image type ${file.type}`);
+			};
+
 			(async function() {
-				const data = await file.text();
+				const processor = on_type[file.type] || error_reporter;
 				const response = await fetch(`/api/v1/print/${printer}`, {
 					method: 'POST',
-					body: JSON.stringify(await on_type[file.type]()),
+					body: JSON.stringify(await processor(file)),
 					headers: {
 						"Content-Type": "application/json",
 					},
