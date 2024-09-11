@@ -1,9 +1,17 @@
-use super::ShutdownToken;
-use crate::{configuration, job};
+use crate::{configuration, job, ShutdownToken};
 
 use log::{debug, error, info, warn};
 
 use serde::Serialize;
+
+use std::{
+    io::Write as _,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use tokio::{
     sync::{mpsc, oneshot},
@@ -13,11 +21,6 @@ use tokio::{
 use zpl::{
     command::{HostIdentification, HostStatus},
     device::ZplPrinter,
-};
-
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
 };
 
 pub struct LabelPrinter {
@@ -87,6 +90,7 @@ struct SimulationParameter {
     wait_time: std::time::Duration,
     dpmm: Option<u32>,
     target: Arc<LabelPrinter>,
+    persist: Option<PathBuf>,
 }
 
 impl LabelPrinter {
@@ -238,36 +242,53 @@ impl PhysicalPrinter {
                         break;
                     };
 
-                    match self.target.config.virtualization {
-                    configuration::LabelVirtualization::DropJobs { wait_time } => {
-                        let con = active.take();
-
-                        let simulation = SimulationParameter {
-                            wait_time,
-                            dpmm: None,
-                            target: self.target.clone(),
-                        };
-
-                        label_being_printed.spawn(simulation_label(con, print_job, simulation));
-                    }
-                    configuration::LabelVirtualization::ZplOnly { wait_time, dpmm } => {
-                        let con = active.take();
-
-                        let simulation = SimulationParameter {
-                            wait_time,
-                            dpmm,
-                            target: self.target.clone(),
-                        };
-
-                        label_being_printed.spawn(simulation_label(con, print_job, simulation));
-                    }
-                    configuration::LabelVirtualization::Physical => {
-                        let active = active.take().expect("Connection either spawned or still active");
-                        label_being_printed.spawn(print_label(active, print_job));
-                    }
-                    }
+                    self.create_job(print_job, active.take(), &mut label_being_printed);
                 }
             )
+        }
+    }
+
+    fn create_job(
+        &self,
+        print_job: job::PrintJob,
+        con: Option<ActiveConnection>,
+        label_being_printed: &mut JoinSet<ConnectionHandled>,
+    ) {
+        match &self.target.config.virtualization {
+            configuration::LabelVirtualization::DropJobs {
+                wait_time,
+                persist,
+            } => {
+                let simulation = SimulationParameter {
+                    wait_time: *wait_time,
+                    dpmm: None,
+                    target: self.target.clone(),
+                    persist: persist.clone(),
+                };
+
+                label_being_printed
+                    .spawn(simulation_label(con, print_job, simulation));
+            }
+            configuration::LabelVirtualization::ZplOnly {
+                dpmm,
+                persist,
+                wait_time,
+            } => {
+                let simulation = SimulationParameter {
+                    wait_time: *wait_time,
+                    dpmm: *dpmm,
+                    target: self.target.clone(),
+                    persist: persist.clone(),
+                };
+
+                label_being_printed
+                    .spawn(simulation_label(con, print_job, simulation));
+            }
+            configuration::LabelVirtualization::Physical => {
+                let active = con
+                    .expect("Pyshical connection re-spawned or still active");
+                label_being_printed.spawn(print_label(active, print_job));
+            }
         }
     }
 }
@@ -297,9 +318,10 @@ async fn simulation_label(
     sim: SimulationParameter,
 ) -> ConnectionHandled {
     let SimulationParameter {
-        wait_time,
         dpmm,
+        mut persist,
         target,
+        wait_time,
     } = sim;
 
     // Start the time for our operation, do not depend on conversion itself.
@@ -320,9 +342,44 @@ async fn simulation_label(
         host
     };
 
-    let _into_label = tokio::task::block_in_place(|| {
-        job.into_label(&target.label.dimensions, &identification);
+    let label = tokio::task::block_in_place(|| {
+        job.into_label(&target.label.dimensions, &identification)
     });
+
+    let commands = label.render().await?;
+    // Loop once but also can break..
+    while let Some(target) = persist.take() {
+        let into = match tempfile::Builder::new()
+            .prefix(&format!("label-{}-", {
+                std::time::SystemTime::now()
+                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                    .map_or(0, |duration| duration.as_secs())
+            }))
+            .suffix(".zpl")
+            .tempfile_in(&target)
+        {
+            Ok(file) => file,
+            Err(error) => {
+                warn!("Failed to dump ZPL even through requested: {error}");
+                break;
+            }
+        };
+
+        info!("Persisting ZPL into {}", into.path().display());
+
+        if let Err(error) = write!(&into, "{}", commands) {
+            warn!("Failed to dump ZPL even through requested: {error}");
+            break;
+        }
+
+        let path = into.path().to_owned();
+        if let Err(error) = into.persist(&path) {
+            warn!("Failed to persist ZPL file: {error}");
+            break;
+        }
+
+        info!("Persisted ZPL into {}", path.display());
+    }
 
     target_time.await;
 

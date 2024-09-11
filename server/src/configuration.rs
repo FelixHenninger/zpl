@@ -41,17 +41,21 @@ pub struct LabelPrinter {
 }
 
 #[derive(Deserialize, Serialize, Default)]
-#[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields, rename_all = "snake_case")]
 pub enum LabelVirtualization {
     /// Connect to the printer, and print jobs.
     #[default]
     Physical,
     /// Instead of handling jobs into labels, just wait. Still, create a connection to the printer.
-    DropJobs { wait_time: std::time::Duration },
+    DropJobs {
+        persist: Option<std::path::PathBuf>,
+        wait_time: std::time::Duration,
+    },
     /// FIXME: not sure, don't rely on a connection at all but still drop jobs.
     ZplOnly {
-        wait_time: std::time::Duration,
         dpmm: Option<u32>,
+        persist: Option<std::path::PathBuf>,
+        wait_time: std::time::Duration,
     },
 }
 
