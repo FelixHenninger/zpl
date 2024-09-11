@@ -1,7 +1,7 @@
 use super::ShutdownToken;
 use crate::{configuration, job};
 
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 
 use serde::Serialize;
 
@@ -69,7 +69,7 @@ pub struct Connector {
 }
 
 pub enum Task {
-    Job(job::PrintJob),
+    Job { print_job: job::PrintJob },
 }
 
 struct ActiveConnection {
@@ -133,14 +133,34 @@ impl PhysicalPrinter {
         let mut con = con;
         let mut active: Option<ActiveConnection> = None;
 
+        // To avoid barraging the printer / network with connection attempts, we ensure a minimum
+        // amount of time is between each one. Note that these refer to the connection attempt
+        // itself, meaning if a connection is running for a longtime and then drops the first
+        // attempt is made immediately. This then restarts the delay.
+        //
+        // Note: the first tick is immediate meaning we do not wait with the initial connection.
         let retry_fail = std::time::Duration::from_millis(1_000);
+        let mut interval_reconnect = tokio::time::interval(retry_fail);
+        interval_reconnect
+            .set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
         loop {
-            if label_being_printed.is_empty() && active.is_none() {
+            if label_being_printed.is_empty()
+                && active.is_none()
+                && self.target.config.is_virtual.is_none()
+            {
+                interval_reconnect.tick().await;
+
                 info!(
                     "[{}]: Connecting to printer at {}",
                     con.name, self.target.config.addr
                 );
+
+                info!(
+                    "[{}]: Next reconnection attempt in {:?}",
+                    con.name, retry_fail
+                );
+
                 let label = self.target.clone();
                 let status = self.status.clone();
                 let name = con.name.clone();
@@ -166,17 +186,17 @@ impl PhysicalPrinter {
                 });
             }
 
+            let is_connection_busy = !label_being_printed.is_empty();
+
             tokio::select!(
-                success = label_being_printed.join_next(), if !label_being_printed.is_empty() => {
+                success = label_being_printed.join_next(), if is_connection_busy => {
                     match success {
                         Some(Ok(Ok(ready))) => {
                             info!("[{}]: Printer ready for label at {}", con.name, self.target.config.addr);
                             active = Some(ready);
                         },
                         Some(Ok(Err(err))) => {
-                            debug!("[{}]: {:?}", con.name, err);
-                            debug!("[{}]: Retry in {:?}", con.name, retry_fail);
-                            tokio::time::sleep(retry_fail).await;
+                            warn!("[{}]: {:?}", con.name, err);
                         }
                         Some(Err(err)) => {
                             error!("[{}]: {:?}", con.name,  err);
@@ -197,10 +217,18 @@ impl PhysicalPrinter {
                 // Back-Pressure: only accept message while not printing. Could also do a buffer
                 // but the channel already is a buffer itself. That only makes sense if we want to
                 // do a re-ordering that the channel's sequential semantics does not permit.
-                job = con.message.recv(), if label_being_printed.is_empty() => {
-                    let Some(Task::Job(job)) = job else { break; };
-                    let active = active.take().unwrap();
-                    label_being_printed.spawn(print_label(active, job));
+                job = con.message.recv(), if !is_connection_busy => {
+                    let Some(Task::Job{ print_job }) = job else {
+                        // Reached end of job queue.
+                        break;
+                    };
+
+                    if let Some(configuration::LabelVirtualization::DropJobs { wait_time }) = self.target.config.is_virtual {
+                        label_being_printed.spawn(simulation_label(wait_time, print_job));
+                    } else {
+                        let active = active.take().expect("Connection either spawned or still active");
+                        label_being_printed.spawn(print_label(active, print_job));
+                    }
                 }
             )
         }
@@ -224,6 +252,15 @@ async fn print_label(
 
     // No change in connection state, free to reuse it.
     Ok(con)
+}
+
+async fn simulation_label(
+    wait_time: std::time::Duration,
+    job: job::PrintJob,
+) -> anyhow::Result<ActiveConnection> {
+    tokio::time::sleep(wait_time).await;
+    let _ = job;
+    anyhow::bail!("dropped label job as complete");
 }
 
 impl Driver {
@@ -250,9 +287,9 @@ impl Driver {
 
     pub async fn send_job(
         &self,
-        job: job::PrintJob,
+        print_job: job::PrintJob,
     ) -> Result<(), &'static str> {
-        match self.message.try_send(Task::Job(job)) {
+        match self.message.try_send(Task::Job { print_job }) {
             Ok(_) => Ok(()),
             Err(_) => Err("failed to queue"),
         }
