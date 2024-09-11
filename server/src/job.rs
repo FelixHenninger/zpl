@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use log::error;
 use serde::Deserialize;
 
@@ -45,17 +47,8 @@ impl PrintApi {
     pub fn validate_as_job(&self) -> anyhow::Result<PrintJob> {
         Ok(match &self.kind {
             PrintApiKind::Svg { code } => {
-                // FIXME: do this once.
-                let mut db = fontdb::Database::new();
-                db.load_system_fonts();
-
-                let options = usvg::Options {
-                    fontdb: db.into(),
-                    ..Default::default()
-                };
-
-                let rtree = usvg::Tree::from_str(&code, &options)?;
-                PrintJob::Svg { tree: rtree }
+                let tree = usvg::Tree::from_str(&code, Self::svg_options())?;
+                PrintJob::Svg { tree }
             }
             PrintApiKind::Image { data: uri } => {
                 let data = std::io::Cursor::new(uri.data.clone());
@@ -83,6 +76,29 @@ impl PrintApi {
                 };
 
                 PrintJob::Image { image }
+            }
+        })
+    }
+
+    /// Get SVG parsing and rendering options for usvg / resvg.
+    ///
+    /// Keep in mind this is one choice. It's not clear if this should be a static and if not,
+    /// which object should keep the authoritative version and how to refresh them. But in
+    /// particular using the system font database introduces a hard host-dependency that is
+    /// implicit. For stronger reproducibility / fingerprint resistance (okay maybe that concern is
+    /// hardly realistic) it would be better to have an explicit list shared by the host
+    /// environment or at least allowing it to override. And then if we combine that with
+    /// hot-reloading we get fully dynamic state that we nevertheless want to share between labels
+    /// being printed.
+    fn svg_options() -> &'static usvg::Options<'static> {
+        static ONCE: OnceLock<usvg::Options> = OnceLock::new();
+        ONCE.get_or_init(|| {
+            let mut db = fontdb::Database::new();
+            db.load_system_fonts();
+
+            usvg::Options {
+                fontdb: db.into(),
+                ..Default::default()
             }
         })
     }
