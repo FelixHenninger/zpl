@@ -1,14 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-use std::{collections::HashMap, net::SocketAddr, path::Path};
+use std::{collections::HashMap, net::SocketAddr, path::Path, sync::Arc};
 
 #[derive(Deserialize, Serialize)]
 pub struct Configuration {
-    pub labels: HashMap<LabelIdentifier, Shared<Label>>,
-    pub printers: HashMap<String, Shared<LabelPrinter>>,
+    pub labels: HashMap<LabelIdentifier, Arc<Label>>,
+    pub printers: HashMap<String, Arc<LabelPrinter>>,
 }
-
-pub struct Shared<T>(pub std::sync::Arc<T>);
 
 #[derive(Deserialize, Serialize)]
 pub struct Label {
@@ -45,31 +43,6 @@ impl Configuration {
     pub async fn from_file(path: &Path) -> anyhow::Result<Self> {
         let data = tokio::fs::read(path).await?;
         Ok(serde_json::de::from_slice(&data)?)
-    }
-}
-
-impl<'de, T> Deserialize<'de> for Shared<T>
-where
-    T: Deserialize<'de>,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = T::deserialize(deserializer)?;
-        Ok(Shared(std::sync::Arc::new(value)))
-    }
-}
-
-impl<T> Serialize for Shared<T>
-where
-    T: Serialize,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        T::serialize(self.0.as_ref(), serializer)
     }
 }
 

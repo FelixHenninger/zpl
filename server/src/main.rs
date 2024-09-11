@@ -57,7 +57,7 @@ async fn reload(State(state): State<Server>) -> String {
     for (name, printer) in &configuration.printers {
         let Some(printer) = physical_printer::LabelPrinter::new(
             &configuration,
-            printer.0.clone(),
+            printer.clone(),
         ) else {
             continue;
         };
