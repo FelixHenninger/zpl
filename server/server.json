@@ -27,7 +27,8 @@
 						"secs": 0,
 						"nanos": 100000000
 					},
-					"dpmm": 8
+					"dpmm": 8,
+					"persist": "/tmp"
 				}
 			}
 		}
