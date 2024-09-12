@@ -1,6 +1,6 @@
 {
 	"labels": {
-		"gx430t": {
+		"51mm": {
 			"dimensions": {
 				"width": 51.0,
 				"height": 51.0,
@@ -8,9 +8,29 @@
 				"margin_right": 1.0,
 				"margin_top": 1.0,
 				"margin_bottom": 1.0
-			},
+			}
+		}
+	},
+	"printers": {
+		"gx430t": {
+			"label": "51mm",
 			"addr": "192.168.178.188:9100",
 			"display_name": "Porkhy"
+		},
+		"gx430t-virtualized": {
+			"label": "51mm",
+			"addr": "0.0.0.0:0",
+			"display_name": "Virtual Printer (test)",
+			"virtualization": {
+				"zpl_only": {
+					"wait_time": {
+						"secs": 0,
+						"nanos": 100000000
+					},
+					"dpmm": 8,
+					"persist": "/tmp"
+				}
+			}
 		}
 	}
 }

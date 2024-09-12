@@ -1,5 +1,5 @@
 #[derive(clap::Parser)]
-pub struct Config {
+pub struct App {
     #[clap(long, env = "ZPL_LISTEN", default_value = "0.0.0.0:3000")]
     pub listen: String,
 

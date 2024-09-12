@@ -21,6 +21,13 @@ pub enum LabelContent {
         w: Unit,
         h: Unit,
     },
+    SvgTree {
+        tree: resvg::usvg::Tree,
+        x: Unit,
+        y: Unit,
+        w: Unit,
+        h: Unit,
+    },
     QrCode {
         content: String,
         x: Unit,
@@ -85,6 +92,21 @@ impl Label {
                     let img_serialized =
                         crate::util::image::SerializedImage::from_svg(
                             code.to_string(),
+                            self.unit_to_dots(w),
+                            self.unit_to_dots(h),
+                        )
+                        .context("Could not load SVG")?;
+
+                    output.push(ZplCommand::MoveOrigin(
+                        self.unit_to_dots(x),
+                        self.unit_to_dots(y),
+                    ));
+                    output.push(ZplCommand::RenderImage(img_serialized));
+                }
+                LabelContent::SvgTree { tree, x, y, w, h } => {
+                    let img_serialized =
+                        crate::util::image::SerializedImage::from_svg_tree(
+                            tree.clone(),
                             self.unit_to_dots(w),
                             self.unit_to_dots(h),
                         )
