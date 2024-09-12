@@ -27,7 +27,16 @@ pub fn render_svg(
         fontdb: Arc::new(db),
         ..Default::default()
     };
+
     let rtree = Tree::from_str(&svg_data, &options).ok().unwrap();
+    render_svg_tree(rtree, canvas_px_width, canvas_px_height)
+}
+
+pub fn render_svg_tree(
+    rtree: Tree,
+    canvas_px_width: u32,
+    canvas_px_height: u32,
+) -> Result<::image::DynamicImage, Error> {
     let rtree_size = rtree.size();
 
     let mut pixmap = Pixmap::new(canvas_px_width, canvas_px_height).unwrap();
@@ -41,8 +50,14 @@ pub fn render_svg(
 
     let offset_x = (canvas_px_width as f32 - image_px_width) / 2.0;
     let offset_y = (canvas_px_height as f32 - image_px_height) / 2.0;
-    assert!(offset_x >= 0.0);
-    assert!(offset_y >= 0.0);
+
+    if !(offset_x >= 0.0) {
+        log::warn!("SVG Rendering Offset X non-positive: {offset_x:?}");
+    }
+
+    if !(offset_y >= 0.0) {
+        log::warn!("SVG Rendering Offset Y non-positive: {offset_y:?}");
+    }
 
     resvg::render(
         &rtree,
@@ -51,7 +66,7 @@ pub fn render_svg(
         &mut pixmap.as_mut(),
     );
 
-    // Unwrapping here since this must succeed.
+    // Unwrapping here since this must succeed, if resvg is correct.
     let png = pixmap.encode_png().unwrap();
 
     let image = image::io::Reader::with_format(

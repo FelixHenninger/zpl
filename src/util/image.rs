@@ -68,4 +68,13 @@ impl SerializedImage {
         let img = svg::render_svg(svg, pix_width, pix_height)?;
         Ok(Self::from_image(&img))
     }
+
+    pub fn from_svg_tree(
+        svg: resvg::usvg::Tree,
+        pix_width: u32,
+        pix_height: u32,
+    ) -> Result<Self, svg::Error> {
+        let img = svg::render_svg_tree(svg, pix_width, pix_height)?;
+        Ok(Self::from_image(&img))
+    }
 }

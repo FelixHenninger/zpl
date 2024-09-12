@@ -14,6 +14,8 @@ pub mod device;
 pub mod label;
 pub mod util;
 
+pub use resvg;
+
 #[derive(Parser, Clone)]
 #[command(version, about)]
 pub struct Args {
