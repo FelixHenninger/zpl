@@ -5,17 +5,29 @@
     <link rel="stylesheet" type="text/css" href="static/style.css"/>
   </head>
   <body>
-    <header>Print Portal for Zebra</header>
+    <header>Web Portal for your dazzle of Zebra Printers</header>
 
+    <!-- Three column layout -->
     <main>
-      <div>
+      <form class="col col-2">
         <label for="zpl-api-file">Select Printer: </label>
         <input id="zpl-api-printer" class="zpl-input-newline" type="text" value="gx430t"></input>
         <label for="zpl-api-file">Select image (SVG or PNG): </label>
         <input id="zpl-api-file"class="zpl-input-newline"  type="file" accept=".svg,image/svg+xml,.png,image/png"></input>
         <button id="zpl-api-print" disabled>Print this file</button>
+        <picture>
+          <img style="width: min(100%, 30em)" id="zpl-preview"></img>
+        </picture>
         <p id="zpl-status"></p>
-      </div>
+      </form>
+      <aside class="col col-1" style="order: -1">
+        <h2>Printer Information</h2>
+        <!-- For printer status information -->
+      </aside>
+      <aside class="col col-2" style="order: 1">
+        <h2>Running Print Jobs</h2>
+        <!-- Running print status -->
+      </aside>
     </main>
 
     <script>
@@ -38,9 +50,20 @@
         return o.join('');
       }
 
+      async function regenerate_preview(element, file) {
+        let uri = URL.createObjectURL(file);
+        element.src = uri;
+      }
+
       document.getElementById('zpl-api-file').oninput = function(ev) {
-        if (ev.target.files)
+        if (ev.target.files) {
           document.getElementById('zpl-api-print').disabled = false;
+          console.log(ev.target.files);
+          const [file] = ev.target.files;
+          regenerate_preview(document.getElementById('zpl-preview'), file);
+        } else {
+          document.getElementById('zpl-api-print').disabled = true;
+        }
       }
 
       document.getElementById('zpl-api-print').onclick = function() {
