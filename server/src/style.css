@@ -9,9 +9,31 @@
 main {
 	display: flex;
 	justify-content: center;
+	flex-wrap: wrap;
 }
 
-body>header {
+main .col-1 {
+	flex-grow: 1;
+}
+
+main .col-2 {
+	flex-grow: 2;
+}
+
+@media( min-width: 20em ) {
+	main .col {
+		min-width: 20em;
+	}
+}
+
+body header {
 	font-family: serif;
-	font-size: large;
+	font-size: 150%;
+	line-height: 1.5;
+}
+
+@media ( min-width: 60em ) {
+	body header {
+		margin-bottom: 4em;
+	}
 }
