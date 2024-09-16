@@ -5,3 +5,13 @@
 #zpl-api-print {
 	display: block;
 }
+
+main {
+	display: flex;
+	justify-content: center;
+}
+
+body>header {
+	font-family: serif;
+	font-size: large;
+}
