@@ -5,12 +5,12 @@
     <link rel="stylesheet" type="text/css" href="static/style.css"/>
   </head>
   <body>
-    <header>Web Portal for your dazzle of Zebra Printers</header>
+    <header>Web Portal for a dazzle of Zebra Printers</header>
 
     <!-- Three column layout -->
     <main>
       <form class="col col-2">
-        <label for="zpl-api-file">Select Printer: </label>
+        <label for="zpl-api-printer">Select Printer: </label>
         <input id="zpl-api-printer" class="zpl-input-newline" type="text" value="gx430t"></input>
         <label for="zpl-api-file">Select image (SVG or PNG): </label>
         <input id="zpl-api-file"class="zpl-input-newline"  type="file" accept=".svg,image/svg+xml,.png,image/png"></input>
@@ -23,14 +23,18 @@
       <aside class="col col-1" style="order: -1">
         <h2>Printer Information</h2>
         <!-- For printer status information -->
+        <div id="zpl-printer-info"></div>
       </aside>
       <aside class="col col-2" style="order: 1">
         <h2>Running Print Jobs</h2>
         <!-- Running print status -->
+        <div id="zpl-label-status"></div>
       </aside>
     </main>
 
     <script>
+      let zpl_global = {};
+
       function encodeB64(buffer) {
         // URL safe flavor.
         ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
@@ -55,10 +59,50 @@
         element.src = uri;
       }
 
+      async function regenerate_printer_info(info, print_api) {
+        if (print_api === undefined) {
+          info.innerText = "Select a valid printer";
+          return;
+        }
+
+        info.innerHTML = '';
+
+        info.appendChild((() => {
+          const d = document.createElement(`p`);
+          d.innerText = `Name: ${print_api.display_name}`;
+          return d;
+        })());
+
+        info.appendChild((() => {
+          const d = document.createElement(`p`);
+          d.innerText = print_api.is_up ? `Status: OK` :  `Status: Down`;
+          return d;
+        })());
+
+        info.appendChild((() => {
+          const d = document.createElement(`p`);
+          d.innerText = `Label: ${print_api.printer_label.width}mm × ${print_api.printer_label.height}mm`;
+          return d;
+        })());
+
+        /* Dev info:
+        info.appendChild((() => {
+          const d = document.createElement(`p`);
+          d.innerText = `Label: ${JSON.stringify(print_api)}`;
+          return d;
+        })());
+        /* */
+      }
+
+      let onchange_printer = function(ev, info) {
+        const info_el = document.getElementById('zpl-printer-info');
+        const value = document.getElementById('zpl-api-printer').value;
+        regenerate_printer_info(info_el, info?.[value]);
+      };
+
       document.getElementById('zpl-api-file').oninput = function(ev) {
         if (ev.target.files) {
           document.getElementById('zpl-api-print').disabled = false;
-          console.log(ev.target.files);
           const [file] = ev.target.files;
           regenerate_preview(document.getElementById('zpl-preview'), file);
         } else {
@@ -116,14 +160,30 @@
             let option = document.createElement('option');
             option.value = key;
             option.innerText = value.display_name || key;
+            // This is important contextual information when choosing a
+            // printer. There may be better ways to display it. In particular, it
+            // will also be part of the printer information display on selection
+            // and this presentation may not be optimal during the choice.
+            // For instance, filtering on this does not work semantically, the
+            // choice may rely on the shape of the printable area which is a
+            // refinement of the rectangular dimensions, margins etc.
             option.innerText += ` ${value.printer_label.width}mm × ${value.printer_label.height}mm`;
             return option.outerHTML;
           })
           .join('');
 
-        const selector = document.getElementById('zpl-api-printer');
-        selector.outerHTML = `<select id="zpl-api-printer" class="zpl-input-newline" type="text">${options}</select>`;
+        const selinput = document.getElementById('zpl-api-printer');
+        selinput.outerHTML = `<select id="zpl-api-printer" class="zpl-input-newline" type="text">${options}</select>`;
 
+        // Created a new element. Let's actually use that to bind the event.
+        const selector = document.getElementById('zpl-api-printer');
+        selector.onchange = (ev) => onchange_printer(ev, info);
+
+        // Or another default / preferred printer mechanism?
+        if (selector.firstChild) {
+          selector.firstChild.selected = true;
+          onchange_printer(null, info);
+        }
       });
     </script>
   </body>

@@ -40,6 +40,10 @@ pub struct PhysicalPrinter {
 
 #[derive(Default)]
 struct PrinterStatus {
+    // FIXME: this can get out of date. Quickly. If the connection itself is not used then we might
+    // not even realize. We should periodically re-validate (possibly by 'heartbeat' messages, or
+    // TCP socket stats) and additionally the time of last contact could be remembered to provide
+    // an accurate picture of reliability to clients.
     is_up: AtomicBool,
 }
 
