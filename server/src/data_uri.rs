@@ -46,13 +46,17 @@ impl<'lt> Deserialize<'lt> for DataUri {
         let data = if is_base64 {
             match GeneralPurpose::new(
                 &base64::alphabet::URL_SAFE,
-                Default::default(),
+                base64::engine::GeneralPurposeConfig::default()
+                    .with_decode_padding_mode(
+                        base64::engine::DecodePaddingMode::Indifferent,
+                    ),
             )
             .decode(data_part)
             {
                 Ok(data) => Arc::<[u8]>::from(data),
-                Err(_b64err) => {
+                Err(b64err) => {
                     let unexpected = Unexpected::Str(data_part);
+                    log::warn!("Invalid client Base 64 {b64err}");
                     return Err(D::Error::invalid_value(
                         unexpected,
                         &"a base64 encoded string",
