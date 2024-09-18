@@ -33,7 +33,7 @@
     </main>
 
     <script>
-      let zpl_global = {};
+      let zpl_global = { configuration: {} };
 
       function encodeB64(buffer) {
         // URL safe flavor.
@@ -52,6 +52,35 @@
         }
 
         return o.join('');
+      }
+
+      function populate_state_from_local_storage() {
+        if (stored = localStorage.getItem( 'zpl_global' )) {
+          try {
+            /* Not doing recursive things for now so assign is fine */
+            Object.assign(zpl_global.configuration, JSON.parse(stored));
+          } catch(_e) { }
+          console.log('Read ', zpl_global.configuration, zpl_global.configuration.looked_at_printer);
+        }
+      }
+
+      function reset_from_state() {
+        if (lap = zpl_global.configuration.looked_at_printer) {
+          if (zpl_global.info?.[lap]) {
+            document.getElementById('zpl-api-printer').value = lap;
+            onchange_printer(null, zpl_global.info);
+          }
+        }
+      }
+
+      function populate_local_storage_from_state() {
+        console.log('Populate', zpl_global);
+        localStorage.setItem( 'zpl_global', JSON.stringify( zpl_global.configuration ));
+      }
+
+      function indicate_printer_as_weak(printer) {
+        zpl_global.configuration.looked_at_printer = printer;
+        populate_local_storage_from_state();
       }
 
       async function regenerate_preview(element, file) {
@@ -171,11 +200,19 @@
         const response = (await fetch("/api/v1/info"));
         const info = await response.json();
 
+        zpl_global.info = info;
+        populate_state_from_local_storage();
+
         const options = Object.entries(info)
           .map(([key, value]) => {
             let option = document.createElement('option');
             option.value = key;
             option.innerText = value.display_name || key;
+
+            if (key == zpl_global?.configuration?.looked_at_printer) {
+              option.selected = true;
+            }
+
             // This is important contextual information when choosing a
             // printer. There may be better ways to display it. In particular, it
             // will also be part of the printer information display on selection
@@ -191,13 +228,18 @@
         const selinput = document.getElementById('zpl-api-printer');
         selinput.outerHTML = `<select id="zpl-api-printer" class="zpl-input-newline" type="text">${options}</select>`;
 
+        reset_from_state();
+
         // Created a new element. Let's actually use that to bind the event.
         const selector = document.getElementById('zpl-api-printer');
-        selector.onchange = (ev) => onchange_printer(ev, info);
+
+        selector.onchange = (ev) => {
+          indicate_printer_as_weak(ev.target.value);
+          onchange_printer(ev, info);
+        };
 
         // Or another default / preferred printer mechanism?
         if (selector.firstChild) {
-          selector.firstChild.selected = true;
           onchange_printer(null, info);
         }
       });
