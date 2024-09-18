@@ -26,6 +26,10 @@ impl ZplPrinter {
         }
     }
 
+    pub fn stream(&self) -> &tokio::net::TcpStream {
+        &self.connection
+    }
+
     pub async fn request_device_status(
         &mut self,
     ) -> std::io::Result<&command::HostStatus> {

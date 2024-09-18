@@ -76,6 +76,22 @@
         info.appendChild((() => {
           const d = document.createElement(`p`);
           d.innerText = print_api.is_up ? `Status: OK` :  `Status: Down`;
+
+          if (print_api.updated_at_unix) {
+            const at = document.createElement(`time`);
+            at.style = "display: inline; margin-left: 1em";
+
+            const date = new Date(
+              /** An __integer__ that is number of __milliseconds__ since UNIX Epoch
+                Who hurt you, person who chose this convention.
+              */
+              (0^print_api.updated_at_unix) * 1000);
+            at.datetime = date.toISOString();
+            at.innerText = date.toLocaleTimeString();
+
+            d.appendChild(at);
+          }
+
           return d;
         })());
 
