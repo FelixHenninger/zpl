@@ -14,7 +14,7 @@
 	"printers": {
 		"gx430t": {
 			"label": "51mm",
-			"addr": "192.168.178.188:9100",
+			"addr": "192.168.179.111:9100",
 			"display_name": "Porkhy"
 		},
 		"gx430t-virtualized": {

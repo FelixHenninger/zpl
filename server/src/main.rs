@@ -81,15 +81,19 @@ async fn push_job(
     Json(payload): Json<job::PrintApi>,
 ) -> String {
     let inner = state.inner.read().await;
+    log::info!("New job asked");
+
     let Some(queue) = inner.printer.get(&printer) else {
         return "No such printer".to_string();
     };
 
+    log::info!("Job to be verified");
     let job = match queue.printer.verify_label(&payload).await {
         Ok(job) => job,
         Err(err) => return err,
     };
 
+    log::info!("Job to be sent to the printer");
     match queue.driver.send_job(job).await {
         Ok(()) => "ok".to_string(),
         Err(err) => err.to_string(),

@@ -5,3 +5,47 @@
 #zpl-api-print {
 	display: block;
 }
+
+main {
+	display: flex;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+main .col-1 {
+	flex-grow: 1;
+}
+
+main .col-2 {
+	flex-grow: 2;
+}
+
+@media( min-width: 20em ) {
+	main .col {
+		min-width: 20em;
+	}
+}
+
+body header {
+	font-family: serif;
+	font-size: 150%;
+	line-height: 1.5;
+}
+
+@media ( min-width: 60em ) {
+	body header {
+		margin-bottom: 4em;
+	}
+}
+
+@keyframes fade-in {
+  0% { opacity: 0; }
+  99% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+#zpl-api-printer {
+  /* This is only a fallback element. Avoid some flicker with a competing element. Expect the local connection to be fast. There's probably a better way to do this */
+  animation-name: fade-in;
+  animation-duration: 0.1s;
+}

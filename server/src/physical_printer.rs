@@ -8,9 +8,10 @@ use std::{
     io::Write as _,
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc,
     },
+    time::SystemTime,
 };
 
 use tokio::{
@@ -40,7 +41,12 @@ pub struct PhysicalPrinter {
 
 #[derive(Default)]
 struct PrinterStatus {
+    // FIXME: this can get out of date. Quickly. If the connection itself is not used then we might
+    // not even realize. We should periodically re-validate (possibly by 'heartbeat' messages, or
+    // TCP socket stats) and additionally the time of last contact could be remembered to provide
+    // an accurate picture of reliability to clients.
     is_up: AtomicBool,
+    updated_at: AtomicU64,
 }
 
 #[derive(Serialize)]
@@ -48,6 +54,7 @@ pub struct StatusInformation {
     display_name: Option<String>,
     printer_label: PrinterInformation,
     is_up: bool,
+    updated_at_unix: u64,
 }
 
 type ConnectionHandled = anyhow::Result<Option<ActiveConnection>>;
@@ -120,6 +127,7 @@ impl PhysicalPrinter {
             is_up: self.status.is_up.load(Ordering::Relaxed),
             display_name: self.target.config.display_name.clone(),
             printer_label: PrinterInformation(self.target.clone()),
+            updated_at_unix: self.status.updated_at.load(Ordering::Relaxed),
         }
     }
 
@@ -159,6 +167,11 @@ impl PhysicalPrinter {
         interval_reconnect
             .set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
+        let keepalive_interval = std::time::Duration::from_millis(1_000);
+        let mut interval_keepalive = tokio::time::interval(keepalive_interval);
+        interval_keepalive
+            .set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
         loop {
             if label_being_printed.is_empty()
                 && active.is_none()
@@ -177,7 +190,6 @@ impl PhysicalPrinter {
                 );
 
                 let label = self.target.clone();
-                let status = self.status.clone();
                 let name = con.name.clone();
 
                 label_being_printed.spawn(async move {
@@ -187,10 +199,6 @@ impl PhysicalPrinter {
                     debug!("[{}]: Connection opened", name);
                     let device_status = printer.request_device_status().await?;
                     info!("[{}]: Device status up", name);
-
-                    status
-                        .is_up
-                        .fetch_or(true, std::sync::atomic::Ordering::Relaxed);
 
                     let device_status = device_status.clone();
 
@@ -205,11 +213,22 @@ impl PhysicalPrinter {
             let is_connection_busy = !label_being_printed.is_empty();
 
             tokio::select!(
+                // If nothing is happening and we have the connection, let's track if it keeps
+                // being or not.
+                _ = interval_keepalive.tick(), if active.is_some() => {
+                    if let Some(ready) = &mut active {
+                        if let Err(error) = ready.verify().await {
+                            warn!("[{}]: Connection broken {}", con.name, error);
+                            let _ = active.take();
+                        }
+                    }
+                }
                 success = label_being_printed.join_next(), if is_connection_busy => {
                     match success {
                         Some(Ok(Ok(ready))) => {
                             if ready.is_some() {
                                 info!("[{}]: Ready for next label in a few", con.name);
+                                interval_keepalive.reset();
                             }
 
                             active = ready;
@@ -244,7 +263,9 @@ impl PhysicalPrinter {
 
                     self.create_job(print_job, active.take(), &mut label_being_printed);
                 }
-            )
+            );
+
+            self.set_up_status(active.as_ref());
         }
     }
 
@@ -290,6 +311,19 @@ impl PhysicalPrinter {
                 label_being_printed.spawn(print_label(active, print_job));
             }
         }
+    }
+
+    fn set_up_status(&self, connection: Option<&ActiveConnection>) {
+        let seconds = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        self.status
+            .is_up
+            .fetch_or(connection.is_some(), Ordering::Relaxed);
+
+        self.status.updated_at.store(seconds, Ordering::Relaxed);
     }
 }
 
@@ -422,6 +456,24 @@ impl Driver {
         if let Some(sender) = self.end.take() {
             let _ = sender.send(ShutdownToken);
         }
+    }
+}
+
+impl ActiveConnection {
+    pub async fn verify(&mut self) -> anyhow::Result<()> {
+        self.printer
+            .stream()
+            .ready(tokio::io::Interest::WRITABLE)
+            .await?;
+
+        let try_active = tokio::time::timeout(
+            std::time::Duration::from_millis(1000),
+            self.printer.request_device_status(),
+        );
+
+        try_active.await??;
+
+        Ok(())
     }
 }
 

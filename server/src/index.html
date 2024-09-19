@@ -1,101 +1,248 @@
 <!DOCTYPE html>
 <html>
-<head>
-	<meta charset="utf-8">
-	<link rel="stylesheet" type="text/css" href="static/style.css"/>
-</head>
-<body>
-	<label for="zpl-api-file">Select Printer: </label>
-	<input id="zpl-api-printer" class="zpl-input-newline" type="text" value="gx430t"></input>
-	<label for="zpl-api-file">Select image (SVG or PNG): </label>
-	<input id="zpl-api-file"class="zpl-input-newline"  type="file" accept=".svg,image/svg+xml,.png,image/png"></input>
-	<button id="zpl-api-print" disabled>Print this file</button>
-	<p id="zpl-status"></p>
-	<script>
-		function encodeB64(buffer) {
-			// URL safe flavor.
-			ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+  <head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" type="text/css" href="static/style.css"/>
+  </head>
+  <body>
+    <header>Web Portal for a dazzle of Zebra Printers</header>
 
-			const encoded_length = 0|(buffer.length / 3 * 4 + 0.9);
-			let o = Array.from('='.repeat(encoded_length));
+    <!-- Three column layout -->
+    <main>
+      <form class="col col-2">
+        <label for="zpl-api-printer">Select Printer: </label>
+        <input id="zpl-api-printer" class="zpl-input-newline" type="text" value="gx430t"></input>
+        <label for="zpl-api-file">Select image (SVG or PNG): </label>
+        <input id="zpl-api-file"class="zpl-input-newline"  type="file" accept=".svg,image/svg+xml,.png,image/png"></input>
+        <button id="zpl-api-print" disabled>Print this file</button>
+        <picture>
+          <img style="width: min(100%, 30em)" id="zpl-preview"></img>
+        </picture>
+        <p id="zpl-status"></p>
+      </form>
+      <aside class="col col-1" style="order: -1">
+        <h2>Printer Information</h2>
+        <!-- For printer status information -->
+        <div id="zpl-printer-info"></div>
+      </aside>
+      <aside class="col col-2" style="order: 1">
+        <h2>Running Print Jobs</h2>
+        <!-- Running print status -->
+        <div id="zpl-label-status"></div>
+      </aside>
+    </main>
 
-			for (let i = 0; i < buffer.length; i += 3) {
-				const s = buffer.slice(i, i+3);
-				const oidx = i / 3 * 4;
-				o[oidx+0] = ALPHABET[s[0] >> 2];
-				o[oidx+1] = ALPHABET[(s[0] & 0x03) << 4 | (s[1] >> 4)];
-				if(s.length > 1) o[oidx+2] = ALPHABET[(s[1] & 0x0f) << 2 | (s[2] >> 6)];
-				if(s.length > 2) o[oidx+3] = ALPHABET[(s[2] & 0x3f)];
-			}
+    <script>
+      let zpl_global = { configuration: {} };
 
-			return o.join('');
-		}
+      function encodeB64(buffer) {
+        // URL safe flavor.
+        ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
 
-		document.getElementById('zpl-api-file').oninput = function(ev) {
-			if (ev.target.files)
-				document.getElementById('zpl-api-print').disabled = false;
-		}
+        const encoded_length = 0|(buffer.length / 3 * 4 + 0.9);
+        let o = Array.from('='.repeat(encoded_length));
 
-		document.getElementById('zpl-api-print').onclick = function() {
-			const [file] = document.getElementById('zpl-api-file').files;
+        for (let i = 0; i < buffer.length; i += 3) {
+          const s = buffer.slice(i, i+3);
+          const oidx = i / 3 * 4;
+          o[oidx+0] = ALPHABET[s[0] >> 2];
+          o[oidx+1] = ALPHABET[(s[0] & 0x03) << 4 | (s[1] >> 4)];
+          if(s.length > 1) o[oidx+2] = ALPHABET[(s[1] & 0x0f) << 2 | (s[2] >> 6)];
+          if(s.length > 2) o[oidx+3] = ALPHABET[(s[2] & 0x3f)];
+        }
 
-			if (file == undefined) {
-				return;
-			}
+        return o.join('');
+      }
 
-			const printer = document.getElementById('zpl-api-printer').value;
+      function populate_state_from_local_storage() {
+        if (stored = localStorage.getItem( 'zpl_global' )) {
+          try {
+            /* Not doing recursive things for now so assign is fine */
+            Object.assign(zpl_global.configuration, JSON.parse(stored));
+          } catch(_e) { }
+          console.log('Read ', zpl_global.configuration, zpl_global.configuration.looked_at_printer);
+        }
+      }
 
-			const on_type = {
-				['image/svg']: async function(file) {
-					const data = await file.text();
-					return {'svg': { 'code': data } };
-				},
-				['image/png']: async function(file) {
-					const bytes = await file.arrayBuffer();
-					const uri = encodeB64(new Uint8Array(bytes));
-					return {'image': { 'data': `data:application/png;base64,${uri}` }};
-				},
-			};
+      function reset_from_state() {
+        if (lap = zpl_global.configuration.looked_at_printer) {
+          if (zpl_global.info?.[lap]) {
+            document.getElementById('zpl-api-printer').value = lap;
+            onchange_printer(null, zpl_global.info);
+          }
+        }
+      }
 
-			on_type['image/svg+xml'] = on_type['image/svg'];
+      function populate_local_storage_from_state() {
+        console.log('Populate', zpl_global);
+        localStorage.setItem( 'zpl_global', JSON.stringify( zpl_global.configuration ));
+      }
 
-			const error_reporter = async function(file) {
-				console.log(`Can't understand image type ${file.type}`);
-			};
+      function indicate_printer_as_weak(printer) {
+        zpl_global.configuration.looked_at_printer = printer;
+        populate_local_storage_from_state();
+      }
 
-			(async function() {
-				const processor = on_type[file.type] || error_reporter;
-				const response = await fetch(`/api/v1/print/${printer}`, {
-					method: 'POST',
-					body: JSON.stringify(await processor(file)),
-					headers: {
-						"Content-Type": "application/json",
-					},
-				});
+      async function regenerate_preview(element, file) {
+        let uri = URL.createObjectURL(file);
+        element.src = uri;
+      }
 
-				document.getElementById('zpl-status').innerText = await response.text();
-			})();
-		}
+      async function regenerate_printer_info(info, print_api) {
+        if (print_api === undefined) {
+          info.innerText = "Select a valid printer";
+          return;
+        }
 
-		window.addEventListener('load', async () => {
-			const response = (await fetch("/api/v1/info"));
-			const info = await response.json();
+        info.innerHTML = '';
 
-			const options = Object.entries(info)
-				.map(([key, value]) => {
-					let option = document.createElement('option');
-					option.value = key;
-					option.innerText = value.display_name || key;
-					option.innerText += ` ${value.printer_label.width}mm × ${value.printer_label.height}mm`;
-					return option.outerHTML;
-				})
-				.join('');
+        info.appendChild((() => {
+          const d = document.createElement(`p`);
+          d.innerText = `Name: ${print_api.display_name}`;
+          return d;
+        })());
 
-			const selector = document.getElementById('zpl-api-printer');
-			selector.outerHTML = `<select id="zpl-api-printer" class="zpl-input-newline" type="text">${options}</select>`;
-			// selector.replaceChildren(..options);
+        info.appendChild((() => {
+          const d = document.createElement(`p`);
+          d.innerText = print_api.is_up ? `Status: OK` :  `Status: Down`;
 
-		});
-	</script>
-</body>
+          if (print_api.updated_at_unix) {
+            const at = document.createElement(`time`);
+            at.style = "display: inline; margin-left: 1em";
+
+            const date = new Date(
+              /** An __integer__ that is number of __milliseconds__ since UNIX Epoch
+                Who hurt you, person who chose this convention.
+              */
+              (0^print_api.updated_at_unix) * 1000);
+            at.datetime = date.toISOString();
+            at.innerText = date.toLocaleTimeString();
+
+            d.appendChild(at);
+          }
+
+          return d;
+        })());
+
+        info.appendChild((() => {
+          const d = document.createElement(`p`);
+          d.innerText = `Label: ${print_api.printer_label.width}mm × ${print_api.printer_label.height}mm`;
+          return d;
+        })());
+
+        /* Dev info:
+        info.appendChild((() => {
+          const d = document.createElement(`p`);
+          d.innerText = `Label: ${JSON.stringify(print_api)}`;
+          return d;
+        })());
+        /* */
+      }
+
+      let onchange_printer = function(ev, info) {
+        const info_el = document.getElementById('zpl-printer-info');
+        const value = document.getElementById('zpl-api-printer').value;
+        regenerate_printer_info(info_el, info?.[value]);
+      };
+
+      document.getElementById('zpl-api-file').oninput = function(ev) {
+        if (ev.target.files) {
+          document.getElementById('zpl-api-print').disabled = false;
+          const [file] = ev.target.files;
+          regenerate_preview(document.getElementById('zpl-preview'), file);
+        } else {
+          document.getElementById('zpl-api-print').disabled = true;
+        }
+      }
+
+      document.getElementById('zpl-api-print').onclick = function() {
+        const [file] = document.getElementById('zpl-api-file').files;
+
+        if (file == undefined) {
+          return;
+        }
+
+        const printer = document.getElementById('zpl-api-printer').value;
+
+        const on_type = {
+          ['image/svg']: async function(file) {
+            const data = await file.text();
+            return {'svg': { 'code': data } };
+          },
+          ['image/png']: async function(file) {
+            const bytes = await file.arrayBuffer();
+            const uri = encodeB64(new Uint8Array(bytes));
+            return {'image': { 'data': `data:application/png;base64,${uri}` }};
+          },
+        };
+
+        on_type['image/svg+xml'] = on_type['image/svg'];
+
+        const error_reporter = async function(file) {
+          console.log(`Can't understand image type ${file.type}`);
+        };
+
+        (async function() {
+          const processor = on_type[file.type] || error_reporter;
+          const response = await fetch(`/api/v1/print/${printer}`, {
+            method: 'POST',
+            body: JSON.stringify(await processor(file)),
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          document.getElementById('zpl-status').innerText = await response.text();
+        })();
+      }
+
+      window.addEventListener('load', async () => {
+        const response = (await fetch("/api/v1/info"));
+        const info = await response.json();
+
+        zpl_global.info = info;
+        populate_state_from_local_storage();
+
+        const options = Object.entries(info)
+          .map(([key, value]) => {
+            let option = document.createElement('option');
+            option.value = key;
+            option.innerText = value.display_name || key;
+
+            if (key == zpl_global?.configuration?.looked_at_printer) {
+              option.selected = true;
+            }
+
+            // This is important contextual information when choosing a
+            // printer. There may be better ways to display it. In particular, it
+            // will also be part of the printer information display on selection
+            // and this presentation may not be optimal during the choice.
+            // For instance, filtering on this does not work semantically, the
+            // choice may rely on the shape of the printable area which is a
+            // refinement of the rectangular dimensions, margins etc.
+            option.innerText += ` ${value.printer_label.width}mm × ${value.printer_label.height}mm`;
+            return option.outerHTML;
+          })
+          .join('');
+
+        const selinput = document.getElementById('zpl-api-printer');
+        selinput.outerHTML = `<select id="zpl-api-printer" class="zpl-input-newline" type="text">${options}</select>`;
+
+        reset_from_state();
+
+        // Created a new element. Let's actually use that to bind the event.
+        const selector = document.getElementById('zpl-api-printer');
+
+        selector.onchange = (ev) => {
+          indicate_printer_as_weak(ev.target.value);
+          onchange_printer(ev, info);
+        };
+
+        // Or another default / preferred printer mechanism?
+        if (selector.firstChild) {
+          onchange_printer(null, info);
+        }
+      });
+    </script>
+  </body>
 </html>
