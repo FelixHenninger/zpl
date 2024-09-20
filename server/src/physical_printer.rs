@@ -1,4 +1,5 @@
 use crate::{configuration, job, ShutdownToken};
+use zpl::label::{PrintCalibration, PrintOptions, Unit};
 
 use log::{debug, error, info, warn};
 
@@ -338,7 +339,20 @@ async fn print_label(
         )
     });
 
-    let seq = label.print(1).await?;
+    let options = {
+        let mut options = PrintOptions::default();
+
+        options.copies = 1;
+        if let Some(cfg) = &con.target.config.calibration {
+            options.calibration = Some(PrintCalibration {
+                home_x: Unit::Millimetres(cfg.home_x),
+            });
+        }
+
+        options
+    };
+
+    let seq = label.print(&options).await?;
     // tokio::fs::write("/tmp/zpl-debug", seq.to_string()).await?;
     con.printer.send(seq).await?;
 
