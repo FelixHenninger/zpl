@@ -173,6 +173,8 @@ impl PhysicalPrinter {
         interval_keepalive
             .set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
+        let connection_timeout = std::time::Duration::from_millis(1_000);
+
         loop {
             if label_being_printed.is_empty()
                 && active.is_none()
@@ -194,8 +196,11 @@ impl PhysicalPrinter {
                 let name = con.name.clone();
 
                 label_being_printed.spawn(async move {
-                    let mut printer =
-                        ZplPrinter::with_address(label.config.addr).await?;
+                    let mut printer = tokio::time::timeout(
+                        connection_timeout,
+                        ZplPrinter::with_address(label.config.addr),
+                    )
+                    .await??;
 
                     debug!("[{}]: Connection opened", name);
                     let device_status = printer.request_device_status().await?;
