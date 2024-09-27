@@ -1,4 +1,5 @@
 use crate::{configuration, job, ShutdownToken};
+use zpl::label::{PrintCalibration, PrintOptions, Unit};
 
 use log::{debug, error, info, warn};
 
@@ -172,6 +173,8 @@ impl PhysicalPrinter {
         interval_keepalive
             .set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
+        let connection_timeout = std::time::Duration::from_millis(1_000);
+
         loop {
             if label_being_printed.is_empty()
                 && active.is_none()
@@ -193,8 +196,11 @@ impl PhysicalPrinter {
                 let name = con.name.clone();
 
                 label_being_printed.spawn(async move {
-                    let mut printer =
-                        ZplPrinter::with_address(label.config.addr).await?;
+                    let mut printer = tokio::time::timeout(
+                        connection_timeout,
+                        ZplPrinter::with_address(label.config.addr),
+                    )
+                    .await??;
 
                     debug!("[{}]: Connection opened", name);
                     let device_status = printer.request_device_status().await?;
@@ -338,7 +344,20 @@ async fn print_label(
         )
     });
 
-    let seq = label.print(1).await?;
+    let options = {
+        let mut options = PrintOptions::default();
+
+        options.copies = 1;
+        if let Some(cfg) = &con.target.config.calibration {
+            options.calibration = Some(PrintCalibration {
+                home_x: Unit::Millimetres(cfg.home_x),
+            });
+        }
+
+        options
+    };
+
+    let seq = label.print(&options).await?;
     // tokio::fs::write("/tmp/zpl-debug", seq.to_string()).await?;
     con.printer.send(seq).await?;
 

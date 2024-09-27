@@ -15,7 +15,10 @@
 		"gx430t": {
 			"label": "51mm",
 			"addr": "192.168.179.111:9100",
-			"display_name": "Porkhy"
+			"display_name": "Porkhy",
+			"calibration": {
+				"home_x": 2.0
+			}
 		},
 		"gx430t-virtualized": {
 			"label": "51mm",
