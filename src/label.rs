@@ -50,6 +50,16 @@ pub struct Label {
     pub dpmm: u32,
 }
 
+#[derive(Default)]
+pub struct PrintOptions {
+    pub copies: u32,
+    pub calibration: Option<PrintCalibration>,
+}
+
+pub struct PrintCalibration {
+    pub home_x: Unit,
+}
+
 impl Label {
     pub fn new(width: u32, height: u32, dpmm: u32) -> Self {
         Self {
@@ -64,6 +74,14 @@ impl Label {
         match u {
             Unit::Dots(d) => *d,
             Unit::Millimetres(mm) => (mm * self.dpmm as f32).floor() as u32,
+        }
+    }
+
+    pub fn signed_unit_to_dots(&self, u: &Unit) -> i32 {
+        match u {
+            &Unit::Dots(d) => d.try_into().unwrap_or(i32::MAX),
+            // conversion from float to integer is specified to clamp.
+            Unit::Millimetres(mm) => (mm * self.dpmm as f32) as i32,
         }
     }
 
@@ -141,8 +159,13 @@ impl Label {
         Ok(output)
     }
 
-    pub async fn print(&self, copies: u32) -> anyhow::Result<CommandSequence> {
+    pub async fn print(
+        &self,
+        options: &PrintOptions,
+    ) -> anyhow::Result<CommandSequence> {
         let mut commands = make_preamble();
+        let copies = options.copies;
+
         commands.append(CommandSequence(vec![
             ZplCommand::StartLabel,
             ZplCommand::SetPostPrintAction(PostPrintAction::Cut),
@@ -150,7 +173,16 @@ impl Label {
             ZplCommand::SetLabelLength(self.height * self.dpmm),
             ZplCommand::SetHorizontalShift(0),
         ]));
+
+        if let Some(calib) = &options.calibration {
+            let home_x = self.signed_unit_to_dots(&calib.home_x);
+            commands.append(CommandSequence(vec![
+                ZplCommand::SetVerticalShift(home_x),
+            ]));
+        }
+
         commands.append(self.render().await?);
+
         commands.append(CommandSequence(vec![
             ZplCommand::PrintQuantity {
                 total: copies,

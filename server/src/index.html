@@ -155,7 +155,7 @@
         }
       }
 
-      document.getElementById('zpl-api-print').onclick = function() {
+      document.getElementById('zpl-api-print').onclick = function(ev) {
         const [file] = document.getElementById('zpl-api-file').files;
 
         if (file == undefined) {
@@ -194,6 +194,9 @@
 
           document.getElementById('zpl-status').innerText = await response.text();
         })();
+
+        ev.preventDefault();
+        return false;
       }
 
       window.addEventListener('load', async () => {

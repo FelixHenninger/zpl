@@ -108,7 +108,13 @@ pub async fn make_label(
         bail!("No image/vector source selected");
     };
 
-    let commands = label.print(copies.get()).await?;
+    let commands = label
+        .print(&{
+            let mut options = label::PrintOptions::default();
+            options.copies = copies.get();
+            options
+        })
+        .await?;
 
     Ok(commands)
 }

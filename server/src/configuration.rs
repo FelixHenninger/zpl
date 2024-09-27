@@ -36,6 +36,9 @@ pub struct LabelPrinter {
     pub display_name: Option<String>,
 
     #[serde(default)]
+    pub calibration: Option<LabelCalibration>,
+
+    #[serde(default)]
     /// If this is not a physical printer, how do we handle it?
     pub virtualization: LabelVirtualization,
 }
@@ -61,12 +64,24 @@ pub enum LabelVirtualization {
 
 #[derive(Deserialize, Serialize)]
 pub struct LabelDimensions {
+    /// Width of the label in mm.
     pub width: f32,
+    /// Height of the label in mm.
     pub height: f32,
+    /// Space to reserve on the left of the label, as by printed direction.
     pub margin_left: f32,
+    /// Space to reserve on the right of the label, as by printed direction.
     pub margin_right: f32,
+    /// Space to reserve on top of the label, as by printed direction.
     pub margin_top: f32,
+    /// Space to reserve at the bottom of the label, as by printed direction.
     pub margin_bottom: f32,
+}
+
+#[derive(Default, Deserialize, Serialize)]
+pub struct LabelCalibration {
+    /// Offset of the label towards the right (positive width) in mm.
+    pub home_x: f32,
 }
 
 impl Configuration {

@@ -99,11 +99,11 @@ pub enum ZplCommand {
     SetPrintWidth(u32),
     SetLabelLength(u32),
     SetPostPrintAction(PostPrintAction),
-    SetHorizontalShift(usize),
+    SetHorizontalShift(i32),
     /// Move the entire label content vertically up or down, relative
     /// to the upper edge of the label. Accepts an offset of up to 120
     /// dots.
-    SetVerticalShift(isize),
+    SetVerticalShift(i32),
     SetTearOffPosition(isize),
     /// Mirror the label vertically
     SetMirrored(bool),
