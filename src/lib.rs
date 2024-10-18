@@ -42,7 +42,6 @@ pub struct Args {
 
     #[arg(
         long = "dpmm",
-        default_value = "None",
         help = "print resolution in dots per mm (overrides printer autodetection)"
     )]
     dpmm: Option<u32>,
