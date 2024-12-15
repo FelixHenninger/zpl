@@ -55,6 +55,10 @@
 
           individualCrateArgs = commonArgs // {
             inherit cargoArtifacts;
+            buildInputs = [
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+              pkgs.libiconv
+            ];
           };
 
           zpl = craneLib.buildPackage individualCrateArgs;
@@ -80,6 +84,10 @@
 
           devShells.default = craneLib.devShell {
             packages = [ config.treefmt.build.wrapper ];
+            buildInputs = [
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+              pkgs.libiconv
+            ];
             RUST_LOG = "debug";
           };
 
