@@ -769,25 +769,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "image-canvas"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1462f503ebc5c7b4c357261f4cb43b986fdc7b4e55b277296924cd803f3abc4"
-dependencies = [
- "bytemuck",
- "image-texel",
-]
-
-[[package]]
-name = "image-texel"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a6a624cc5c85487ca09c1a76e01a375d606babb4e2c4985f2a137d6cce2d491"
-dependencies = [
- "bytemuck",
-]
-
-[[package]]
 name = "image-webp"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2169,7 +2150,6 @@ dependencies = [
  "env_logger",
  "flate2",
  "image",
- "image-canvas",
  "itertools 0.13.0",
  "log",
  "quick-error",
