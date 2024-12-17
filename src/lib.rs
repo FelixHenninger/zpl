@@ -19,8 +19,8 @@ pub use resvg;
 #[derive(Parser, Clone)]
 #[command(version, about)]
 pub struct Args {
-    #[arg(default_value = "192.168.1.39:9100")]
-    ip: SocketAddr,
+    #[arg(required_unless_present = "output_zpl_only")]
+    ip: Option<SocketAddr>,
 
     #[arg(long = "image")]
     image: Option<PathBuf>,
@@ -119,18 +119,29 @@ pub async fn make_label(
 }
 
 pub async fn run(args: Args) -> anyhow::Result<()> {
-    let mut device = ZplPrinter::with_address(args.ip).await?;
-    let config = device.request_device_status().await?;
-    let dpmm = config.identification.dpmm;
+    let device;
 
-    let label = make_label(args, Some(dpmm)).await?;
+    let dpmm = if let Some(ip) = args.ip {
+        let mut cfg_device = ZplPrinter::with_address(ip).await?;
+        let config = cfg_device.request_device_status().await?;
+        let dpmm = config.identification.dpmm;
 
-    Ok(device.send(label).await?)
-}
+        device = Some(cfg_device);
+        Some(dpmm)
+    } else {
+        anyhow::ensure!(args.dpmm.is_some(), "--dpmm is required");
 
-pub async fn run_output_zpl_only(args: Args) -> anyhow::Result<()> {
-    let label = make_label(args, None).await?;
-    println!("{}", label);
+        device = None;
+        args.dpmm
+    };
+
+    let label = make_label(args, dpmm).await?;
+
+    if let Some(mut device) = device {
+        device.send(label).await?
+    } else {
+        println!("{}", label);
+    }
 
     Ok(())
 }
