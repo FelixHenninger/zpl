@@ -1,16 +1,37 @@
 use std::sync::Arc;
 
+use base64::engine::{general_purpose::STANDARD, Engine as _};
+use flate2::{bufread::GzEncoder, Compression};
 use image::{self, imageops};
 use itertools::Itertools;
 
-use crate::util::svg;
+use crate::util::{crc, svg};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SerializedImage {
-    pub byte_count: u32,
-    pub total_field_count: u32,
-    pub bytes_per_row: u32,
-    pub data: Arc<str>,
+pub enum SerializedImage {
+    AsciiHex {
+        byte_count: u32,
+        total_field_count: u32,
+        bytes_per_row: u32,
+        data: Arc<str>,
+    },
+    Compressed {
+        byte_count: u32,
+        total_field_count: u32,
+        bytes_per_row: u32,
+        data: Arc<str>,
+        id: CompressedId,
+        crc: u16,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CompressedId {
+    #[allow(unused)]
+    /// Base64 data.
+    B64,
+    /// flate compressed and then bas64.
+    Z64,
 }
 
 impl SerializedImage {
@@ -52,11 +73,35 @@ impl SerializedImage {
         let byte_count = total_field_count * 2;
 
         //format!("^GFA,{byte_count},{total_field_count},{bytes_per_row},{data}^FS")
-        SerializedImage {
+        SerializedImage::AsciiHex {
             byte_count,
             total_field_count,
             bytes_per_row,
             data: data.into(),
+        }
+    }
+
+    pub fn from_compressed(img: &image::DynamicImage) -> Self {
+        let bytes_per_row = (img.width() + 7) / 8;
+        let total_field_count = bytes_per_row * img.height();
+        let byte_count = total_field_count * 2;
+
+        let img = img.to_luma8();
+        let bytes = std::io::Cursor::new(bit_encode(&img));
+
+        let mut encode = GzEncoder::new(bytes, Compression::best());
+        let mut encoded = vec![];
+        std::io::Read::read_to_end(&mut encode, &mut encoded).unwrap();
+
+        let data = STANDARD.encode(encoded);
+
+        SerializedImage::Compressed {
+            byte_count,
+            total_field_count,
+            bytes_per_row,
+            crc: crc::checksum(data.as_bytes()),
+            data: data.into(),
+            id: CompressedId::Z64,
         }
     }
 
@@ -109,6 +154,19 @@ pub fn bit_encode(image: &image::GrayImage) -> Vec<u8> {
     from.convert(&mut into);
 
     into.into_bytes()
+}
+
+impl core::fmt::Display for CompressedId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                CompressedId::B64 => "B64",
+                CompressedId::Z64 => "Z64",
+            }
+        )
+    }
 }
 
 #[test]
