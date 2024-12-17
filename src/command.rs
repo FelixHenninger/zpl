@@ -294,12 +294,20 @@ impl From<ZplCommand> for String {
                     if cut_only { "Y" } else { "N" }
                 )
             }
-            ZplCommand::RenderImage(SerializedImage {
+            ZplCommand::RenderImage(SerializedImage::AsciiHex {
                 byte_count,
                 total_field_count,
                 bytes_per_row,
                 data,
             }) => format!("^GFA,{byte_count},{total_field_count},{bytes_per_row},{data}^FS"),
+            ZplCommand::RenderImage(SerializedImage::Compressed {
+                byte_count,
+                total_field_count,
+                bytes_per_row,
+                data,
+                id,
+                crc,
+            }) => format!("^GFC,{byte_count},{total_field_count},{bytes_per_row},:{id}:{data}:{crc:4x}^FS"),
             ZplCommand::FieldOrigin(x, y) => format!("^FO{x},{y}"),
             ZplCommand::FieldData(data) => format!("^FD{data}"),
             ZplCommand::FieldModeQRCode { zoom } => {
