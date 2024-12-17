@@ -78,3 +78,74 @@ impl SerializedImage {
         Ok(Self::from_image(&img))
     }
 }
+
+/// Encode a *linear grayscale* image to the bit-packed vector.
+pub fn bit_encode(image: &image::GrayImage) -> Vec<u8> {
+    use image_canvas::{
+        layout::{Block, CanvasLayout, SampleBits, SampleParts, Texel},
+        Canvas,
+    };
+
+    let texel_in = Texel {
+        block: Block::Pixel,
+        parts: SampleParts::Luma,
+        bits: SampleBits::UInt8,
+    };
+
+    let texel_out = Texel {
+        block: Block::Pack1x8,
+        parts: SampleParts::Luma,
+        bits: SampleBits::UInt1x8,
+    };
+
+    let (w, h) = image.dimensions();
+    let mut from =
+        Canvas::new(CanvasLayout::with_texel(&texel_in, w, h).unwrap());
+
+    let mut into =
+        Canvas::new(CanvasLayout::with_texel(&texel_out, w, h).unwrap());
+
+    from.as_bytes_mut().copy_from_slice(image);
+    from.convert(&mut into);
+
+    into.into_bytes()
+}
+
+#[test]
+fn convert_luma_to_bits() {
+    assert_eq!(bit_encode(&image::GrayImage::new(0, 0)).len(), 0);
+    assert_eq!(bit_encode(&image::GrayImage::new(4, 4)).len(), 4);
+    assert_eq!(bit_encode(&image::GrayImage::new(8, 1)).len(), 1);
+    assert_eq!(bit_encode(&image::GrayImage::new(7, 1)).len(), 1);
+    assert_eq!(bit_encode(&image::GrayImage::new(7, 2)).len(), 2);
+
+    assert_eq!(bit_encode(&image::GrayImage::new(224, 64)).len(), 28 * 64);
+
+    assert_eq!(
+        bit_encode(&image::GrayImage::from_fn(1, 1, |_, _| image::Luma(
+            [127; 1]
+        ))),
+        vec![0]
+    );
+
+    assert_eq!(
+        bit_encode(&image::GrayImage::from_fn(1, 1, |_, _| image::Luma(
+            [128; 1]
+        ))),
+        vec![0x80]
+    );
+
+    assert_eq!(
+        bit_encode(&image::GrayImage::from_fn(8, 2, |_, y| image::Luma(
+            [128 >> y; 1]
+        ))),
+        vec![0xff, 0x0]
+    );
+
+    assert_eq!(
+        bit_encode(&image::GrayImage::from_fn(8, 2, |x, y| image::Luma(
+            [((x + y) as u8 * 31u8); 1]
+        ))),
+        vec![0x07, 0x0f]
+    );
+}
