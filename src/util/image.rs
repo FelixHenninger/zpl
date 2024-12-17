@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use base64::engine::{general_purpose::STANDARD, Engine as _};
-use flate2::{bufread::GzEncoder, Compression};
+use flate2::{bufread::ZlibEncoder, Compression};
 use image::{self, imageops};
 use itertools::Itertools;
 
@@ -27,7 +27,6 @@ pub enum SerializedImage {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CompressedId {
-    #[allow(unused)]
     /// Base64 data.
     B64,
     /// flate compressed and then bas64.
@@ -68,7 +67,7 @@ impl SerializedImage {
             // ... missing grouping ...
             .concat();
 
-        let bytes_per_row = (img.width() + 7) / 8;
+        let bytes_per_row = img.width().div_ceil(8);
         let total_field_count = bytes_per_row * img.height();
         let byte_count = total_field_count * 2;
 
@@ -82,14 +81,14 @@ impl SerializedImage {
     }
 
     pub fn from_compressed(img: &image::DynamicImage) -> Self {
-        let bytes_per_row = (img.width() + 7) / 8;
+        let bytes_per_row = img.width().div_ceil(8);
         let total_field_count = bytes_per_row * img.height();
-        let byte_count = total_field_count * 2;
+        let byte_count = total_field_count;
 
         let img = img.to_luma8();
         let bytes = std::io::Cursor::new(bit_encode(&img));
 
-        let mut encode = GzEncoder::new(bytes, Compression::best());
+        let mut encode = ZlibEncoder::new(bytes, Compression::best());
         let mut encoded = vec![];
         std::io::Read::read_to_end(&mut encode, &mut encoded).unwrap();
 
@@ -105,13 +104,31 @@ impl SerializedImage {
         }
     }
 
+    pub fn from_base64(img: &image::DynamicImage) -> Self {
+        let bytes_per_row = img.width().div_ceil(8);
+        let total_field_count = bytes_per_row * img.height();
+        let byte_count = total_field_count;
+
+        let encoded = bit_encode(&img.to_luma8());
+        let data = STANDARD.encode(encoded);
+
+        SerializedImage::Compressed {
+            byte_count,
+            total_field_count,
+            bytes_per_row,
+            crc: crc::checksum(data.as_bytes()),
+            data: data.into(),
+            id: CompressedId::B64,
+        }
+    }
+
     pub fn from_svg(
         svg: String,
         pix_width: u32,
         pix_height: u32,
     ) -> Result<Self, svg::Error> {
         let img = svg::render_svg(svg, pix_width, pix_height)?;
-        Ok(Self::from_image(&img))
+        Ok(Self::from_compressed(&img))
     }
 
     pub fn from_svg_tree(
@@ -120,40 +137,28 @@ impl SerializedImage {
         pix_height: u32,
     ) -> Result<Self, svg::Error> {
         let img = svg::render_svg_tree(svg, pix_width, pix_height)?;
-        Ok(Self::from_image(&img))
+        Ok(Self::from_compressed(&img))
     }
 }
 
 /// Encode a *linear grayscale* image to the bit-packed vector.
 pub fn bit_encode(image: &image::GrayImage) -> Vec<u8> {
-    use image_canvas::{
-        layout::{Block, CanvasLayout, SampleBits, SampleParts, Texel},
-        Canvas,
-    };
-
-    let texel_in = Texel {
-        block: Block::Pixel,
-        parts: SampleParts::Luma,
-        bits: SampleBits::UInt8,
-    };
-
-    let texel_out = Texel {
-        block: Block::Pack1x8,
-        parts: SampleParts::Luma,
-        bits: SampleBits::UInt1x8,
-    };
-
-    let (w, h) = image.dimensions();
-    let mut from =
-        Canvas::new(CanvasLayout::with_texel(&texel_in, w, h).unwrap());
-
-    let mut into =
-        Canvas::new(CanvasLayout::with_texel(&texel_out, w, h).unwrap());
-
-    from.as_bytes_mut().copy_from_slice(image);
-    from.convert(&mut into);
-
-    into.into_bytes()
+    image
+        .pixels()
+        .chunks(image.width() as usize)
+        .into_iter()
+        .map(|row| {
+            row.chunks(8)
+                .into_iter()
+                .map(|quad| {
+                    quad.zip((0..8).rev())
+                        .map(|(luma, b)| (u8::from(luma.0[0] < 128)) << b)
+                        .sum()
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>()
+        .concat()
 }
 
 impl core::fmt::Display for CompressedId {

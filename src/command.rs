@@ -307,7 +307,7 @@ impl From<ZplCommand> for String {
                 data,
                 id,
                 crc,
-            }) => format!("^GFC,{byte_count},{total_field_count},{bytes_per_row},:{id}:{data}:{crc:4x}^FS"),
+            }) => format!("^GFA,{byte_count},{total_field_count},{bytes_per_row},:{id}:{data}:{crc:04x}^FS"),
             ZplCommand::FieldOrigin(x, y) => format!("^FO{x},{y}"),
             ZplCommand::FieldData(data) => format!("^FD{data}"),
             ZplCommand::FieldModeQRCode { zoom } => {
