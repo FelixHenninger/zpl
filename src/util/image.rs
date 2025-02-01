@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use base64::engine::{general_purpose::STANDARD, Engine as _};
-use flate2::{bufread::ZlibEncoder, Compression};
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 use image::{self, imageops};
 use itertools::Itertools;
+use std::io::prelude::*;
 
 use crate::util::{crc, svg};
 
@@ -36,36 +38,9 @@ pub enum CompressedId {
 impl SerializedImage {
     pub fn from_image(img: &image::DynamicImage) -> Self {
         let mut img = img.grayscale().into_luma8();
-
         imageops::dither(&mut img, &imageops::BiLevel);
 
-        let data = img
-            .pixels()
-            .chunks(img.width() as usize)
-            .into_iter()
-            .map(|row| {
-                // Take groups of 4 pixels, turning them into a single byte value using the lower 4
-                // bits of each such byte turn it into hex value.
-                let output = row
-                    .chunks(4)
-                    .into_iter()
-                    .map(|quad| {
-                        quad.zip([8, 4, 2, 1])
-                            .map(|(luma, b)| (luma.0[0] < 128) as i32 * b)
-                            .sum()
-                    })
-                    .map(|p: i32| format!("{:x}", p))
-                    .collect::<Vec<String>>()
-                    .concat();
-                // Append another 0 texel group for somewhat unknown reasons
-                format!(
-                    "{output}{}",
-                    if output.len() % 2 == 0 { "" } else { "0" }
-                )
-            })
-            .collect::<Vec<String>>()
-            // ... missing grouping ...
-            .concat();
+        let data = bit_encode(&img);
 
         let bytes_per_row = img.width().div_ceil(8);
         let total_field_count = bytes_per_row * img.height();
@@ -76,48 +51,54 @@ impl SerializedImage {
             byte_count,
             total_field_count,
             bytes_per_row,
-            data: data.into(),
+            data: hex::encode(data).into(),
         }
     }
 
     pub fn from_compressed(img: &image::DynamicImage) -> Self {
+        let mut img = img.grayscale().into_luma8();
+        imageops::dither(&mut img, &imageops::BiLevel);
+
         let bytes_per_row = img.width().div_ceil(8);
         let total_field_count = bytes_per_row * img.height();
         let byte_count = total_field_count;
 
-        let img = img.to_luma8();
-        let bytes = std::io::Cursor::new(bit_encode(&img));
+        let data = bit_encode(&img);
 
-        let mut encode = ZlibEncoder::new(bytes, Compression::best());
-        let mut encoded = vec![];
-        std::io::Read::read_to_end(&mut encode, &mut encoded).unwrap();
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(&data).unwrap();
+        let compressed = encoder.finish().unwrap();
 
-        let data = STANDARD.encode(encoded);
+        let image_base64 = STANDARD.encode(compressed);
 
         SerializedImage::Compressed {
             byte_count,
             total_field_count,
             bytes_per_row,
-            crc: crc::checksum(data.as_bytes()),
-            data: data.into(),
+            crc: crc::checksum(image_base64.as_bytes()),
+            data: image_base64.into(),
             id: CompressedId::Z64,
         }
     }
 
     pub fn from_base64(img: &image::DynamicImage) -> Self {
+        let mut img = img.grayscale().into_luma8();
+        //imageops::dither(&mut img, &imageops::BiLevel);
+
+        let data = bit_encode(&img);
+        let image_base64 = STANDARD.encode(data);
+
+        // Byte count includes prefix and CRC
+        let byte_count = (image_base64.chars().count() + 10) as u32;
         let bytes_per_row = img.width().div_ceil(8);
         let total_field_count = bytes_per_row * img.height();
-        let byte_count = total_field_count;
-
-        let encoded = bit_encode(&img.to_luma8());
-        let data = STANDARD.encode(encoded);
 
         SerializedImage::Compressed {
             byte_count,
             total_field_count,
             bytes_per_row,
-            crc: crc::checksum(data.as_bytes()),
-            data: data.into(),
+            crc: crc::checksum(image_base64.as_bytes()),
+            data: image_base64.into(),
             id: CompressedId::B64,
         }
     }
@@ -143,22 +124,21 @@ impl SerializedImage {
 
 /// Encode a *linear grayscale* image to the bit-packed vector.
 pub fn bit_encode(image: &image::GrayImage) -> Vec<u8> {
-    image
+    use bitvec::prelude::*;
+
+    let pixels = image
         .pixels()
+        .map(|luma| (luma.0[0] < 127) as bool) // I really think this should be *<*
+        .collect::<Vec<bool>>();
+
+    let pixels = pixels
+        .iter()
         .chunks(image.width() as usize)
         .into_iter()
-        .map(|row| {
-            row.chunks(8)
-                .into_iter()
-                .map(|quad| {
-                    quad.zip((0..8).rev())
-                        .map(|(luma, b)| (u8::from(luma.0[0] < 128)) << b)
-                        .sum()
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect::<Vec<_>>()
-        .concat()
+        .map(|row| row.collect::<BitVec<u8, Msb0>>().as_raw_slice().to_vec())
+        .concat();
+
+    return pixels;
 }
 
 impl core::fmt::Display for CompressedId {

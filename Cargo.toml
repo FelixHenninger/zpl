@@ -8,7 +8,7 @@ base64 = "0.22"
 crc = "3"
 clap = { version = "4.5.8", features = ["derive"] }
 flate2 = { version = "1" }
-image = { version = "0.25.1", features = [] }
+image = { version = "0.25.8", features = [] }
 itertools = "0.13.0"
 resvg = "0.42"
 tokio = { version = "1.37.0", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "time"] }
@@ -16,6 +16,8 @@ quick-error = "2"
 anyhow = "1.0.86"
 env_logger = "0.11.5"
 log = "0.4.22"
+bitvec = "1.0.1"
+hex = "0.4.3"
 
 [workspace]
 members = [".", "server"]
