@@ -1,13 +1,19 @@
 use std::sync::Arc;
 
 use base64::engine::{general_purpose::STANDARD, Engine as _};
-use flate2::write::ZlibEncoder;
-use flate2::Compression;
 use image::{self, imageops};
 use itertools::Itertools;
 use std::io::prelude::*;
 
 use crate::util::{crc, svg};
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Compression {
+    /// Base64-encoded bits
+    B64,
+    /// Zlib-compressed, base64-encoded bits
+    Z64,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SerializedImage {
@@ -22,21 +28,13 @@ pub enum SerializedImage {
         total_field_count: u32,
         bytes_per_row: u32,
         data: Arc<str>,
-        id: CompressedId,
+        id: Compression,
         crc: u16,
     },
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum CompressedId {
-    /// Base64 data.
-    B64,
-    /// flate compressed and then bas64.
-    Z64,
-}
-
 impl SerializedImage {
-    pub fn from_image(img: &image::DynamicImage) -> Self {
+    pub fn new_ascii(img: &image::DynamicImage) -> Self {
         let mut img = img.grayscale().into_luma8();
         imageops::dither(&mut img, &imageops::BiLevel);
 
@@ -46,7 +44,6 @@ impl SerializedImage {
         let total_field_count = bytes_per_row * img.height();
         let byte_count = total_field_count * 2;
 
-        //format!("^GFA,{byte_count},{total_field_count},{bytes_per_row},{data}^FS")
         SerializedImage::AsciiHex {
             byte_count,
             total_field_count,
@@ -55,21 +52,25 @@ impl SerializedImage {
         }
     }
 
-    pub fn from_compressed(img: &image::DynamicImage) -> Self {
+    pub fn new_z64(img: &image::DynamicImage) -> Self {
         let mut img = img.grayscale().into_luma8();
         imageops::dither(&mut img, &imageops::BiLevel);
 
-        let bytes_per_row = img.width().div_ceil(8);
-        let total_field_count = bytes_per_row * img.height();
-        let byte_count = total_field_count;
-
         let data = bit_encode(&img);
 
-        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        // Compress via zlib
+        use flate2::{write::ZlibEncoder, Compression as ZlibCompression};
+        let mut encoder =
+            ZlibEncoder::new(Vec::new(), ZlibCompression::default());
         encoder.write_all(&data).unwrap();
         let compressed = encoder.finish().unwrap();
 
+        // Encode as base64
         let image_base64 = STANDARD.encode(compressed);
+
+        let byte_count = (image_base64.chars().count() + 10) as u32;
+        let bytes_per_row = img.width().div_ceil(8);
+        let total_field_count = bytes_per_row * img.height();
 
         SerializedImage::Compressed {
             byte_count,
@@ -77,13 +78,13 @@ impl SerializedImage {
             bytes_per_row,
             crc: crc::checksum(image_base64.as_bytes()),
             data: image_base64.into(),
-            id: CompressedId::Z64,
+            id: Compression::Z64,
         }
     }
 
-    pub fn from_base64(img: &image::DynamicImage) -> Self {
+    pub fn new_b64(img: &image::DynamicImage) -> Self {
         let mut img = img.grayscale().into_luma8();
-        //imageops::dither(&mut img, &imageops::BiLevel);
+        imageops::dither(&mut img, &imageops::BiLevel);
 
         let data = bit_encode(&img);
         let image_base64 = STANDARD.encode(data);
@@ -99,7 +100,7 @@ impl SerializedImage {
             bytes_per_row,
             crc: crc::checksum(image_base64.as_bytes()),
             data: image_base64.into(),
-            id: CompressedId::B64,
+            id: Compression::B64,
         }
     }
 
@@ -109,7 +110,7 @@ impl SerializedImage {
         pix_height: u32,
     ) -> Result<Self, svg::Error> {
         let img = svg::render_svg(svg, pix_width, pix_height)?;
-        Ok(Self::from_compressed(&img))
+        Ok(Self::new_z64(&img))
     }
 
     pub fn from_svg_tree(
@@ -118,7 +119,7 @@ impl SerializedImage {
         pix_height: u32,
     ) -> Result<Self, svg::Error> {
         let img = svg::render_svg_tree(svg, pix_width, pix_height)?;
-        Ok(Self::from_compressed(&img))
+        Ok(Self::new_z64(&img))
     }
 }
 
@@ -128,27 +129,25 @@ pub fn bit_encode(image: &image::GrayImage) -> Vec<u8> {
 
     let pixels = image
         .pixels()
-        .map(|luma| (luma.0[0] < 127) as bool) // I really think this should be *<*
+        .map(|luma| luma.0[0] < 127)
         .collect::<Vec<bool>>();
 
-    let pixels = pixels
+    pixels
         .iter()
         .chunks(image.width() as usize)
         .into_iter()
         .map(|row| row.collect::<BitVec<u8, Msb0>>().as_raw_slice().to_vec())
-        .concat();
-
-    return pixels;
+        .concat()
 }
 
-impl core::fmt::Display for CompressedId {
+impl core::fmt::Display for Compression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match self {
-                CompressedId::B64 => "B64",
-                CompressedId::Z64 => "Z64",
+                Compression::B64 => "B64",
+                Compression::Z64 => "Z64",
             }
         )
     }

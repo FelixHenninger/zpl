@@ -108,10 +108,9 @@ pub async fn make_label(
     };
 
     let commands = label
-        .print(&{
-            let mut options = label::PrintOptions::default();
-            options.copies = copies.get();
-            options
+        .print(&label::PrintOptions {
+            copies: copies.get(),
+            ..Default::default()
         })
         .await?;
 

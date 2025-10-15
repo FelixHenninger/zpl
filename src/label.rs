@@ -98,9 +98,7 @@ impl Label {
                     );
 
                     let img_serialized =
-                        crate::util::image::SerializedImage::from_compressed(
-                            &img,
-                        );
+                        crate::util::image::SerializedImage::new_z64(&img);
 
                     output.push(ZplCommand::MoveOrigin(
                         self.unit_to_dots(x),
