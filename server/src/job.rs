@@ -1,4 +1,5 @@
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
+use tokio::sync::watch;
 
 use log::error;
 use serde::Deserialize;
@@ -34,15 +35,6 @@ pub enum PrintApiKind {
     Image { data: DataUri },
 }
 
-/// The representation after ingestion by the API. We try to avoid IO, in particular fallible IO,
-/// after that representation has been reached. This reduces the number of late errors that must
-/// wait on a device to process the job to be noticed.
-#[non_exhaustive]
-pub enum PrintJob {
-    Svg { tree: usvg::Tree },
-    Image { image: image::DynamicImage },
-}
-
 impl PrintApi {
     pub fn validate_as_job(&self) -> anyhow::Result<PrintJob> {
         Ok(match &self.kind {
@@ -53,7 +45,7 @@ impl PrintApi {
             PrintApiKind::Image { data: uri } => {
                 let data = std::io::Cursor::new(uri.data.clone());
                 let image = {
-                    let mut reader = image::io::Reader::new(data);
+                    let mut reader = image::ImageReader::new(data);
 
                     let format_hint = match uri.mime.as_str() {
                         "image/png" | "application/png" => {
@@ -104,6 +96,15 @@ impl PrintApi {
     }
 }
 
+/// The representation after ingestion by the API. We try to avoid IO, in particular fallible IO,
+/// after that representation has been reached. This reduces the number of late errors that must
+/// wait on a device to process the job to be noticed.
+#[non_exhaustive]
+pub enum PrintJob {
+    Svg { tree: usvg::Tree },
+    Image { image: image::DynamicImage },
+}
+
 impl PrintJob {
     pub fn into_label(
         self,
@@ -140,5 +141,54 @@ impl PrintJob {
         }
 
         label
+    }
+}
+
+/// A resource that can be monitored for interest by other tasks.
+///
+/// Clones refer to the same underlying resource.
+#[derive(Clone)]
+pub struct Interest {
+    available: Arc<watch::Sender<usize>>,
+}
+
+pub struct KeepInterest {
+    available: Arc<watch::Sender<usize>>,
+}
+
+impl Default for Interest {
+    fn default() -> Self {
+        Self {
+            available: Arc::new(watch::Sender::new(0)),
+        }
+    }
+}
+
+impl Interest {
+    /// Generate a token that signals interest in this resource while it is alive.
+    pub fn uphold(&self) -> KeepInterest {
+        self.available.send_modify(|n| *n += 1);
+
+        KeepInterest {
+            available: self.available.clone(),
+        }
+    }
+
+    /// Check if, right now, there is at least one interested party.
+    pub fn has_strong_interest(&self) -> bool {
+        *self.available.borrow() > 0
+    }
+
+    /// Wait until there is at least one interested party.
+    pub async fn wait_for_strong_interest(&self) -> bool {
+        let mut recv = self.available.subscribe();
+        let result = recv.wait_for(|n| *n > 0).await;
+        result.is_ok()
+    }
+}
+
+impl Drop for KeepInterest {
+    fn drop(&mut self) {
+        self.available.send_modify(|n| *n -= 1);
     }
 }

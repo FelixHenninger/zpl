@@ -353,6 +353,7 @@ fn test_setup() {
     assert_eq!(String::from(c), "^PW684\n^LL0384");
 }
 
+#[derive(Clone)]
 pub struct CommandSequence(pub Vec<ZplCommand>);
 
 impl CommandSequence {

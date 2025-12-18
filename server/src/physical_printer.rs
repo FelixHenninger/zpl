@@ -1,4 +1,9 @@
-use crate::{configuration, job, ShutdownToken};
+use crate::{
+    configuration,
+    job::{self, Interest, KeepInterest},
+    ShutdownToken,
+};
+
 use zpl::label::{PrintCalibration, PrintOptions, Unit};
 
 use log::{debug, error, info, warn};
@@ -42,12 +47,15 @@ pub struct PhysicalPrinter {
 
 #[derive(Default)]
 struct PrinterStatus {
-    // FIXME: this can get out of date. Quickly. If the connection itself is not used then we might
-    // not even realize. We should periodically re-validate (possibly by 'heartbeat' messages, or
-    // TCP socket stats) and additionally the time of last contact could be remembered to provide
-    // an accurate picture of reliability to clients.
+    /// FIXME: this can get out of date. Quickly. If the connection itself is not used then we
+    /// might not even realize. We should periodically re-validate (possibly by 'heartbeat'
+    /// messages, or TCP socket stats) and additionally the time of last contact could be
+    /// remembered to provide an accurate picture of reliability to clients.
     is_up: AtomicBool,
     updated_at: AtomicU64,
+    /// Uphold this to ensure the connection to the printer does not go idle. In idle, the printer
+    /// connection is only opened every couple of minutes and then dropped again.
+    interest: Interest,
 }
 
 #[derive(Serialize)]
@@ -85,7 +93,10 @@ pub struct Connector {
 }
 
 pub enum Task {
-    Job { print_job: job::PrintJob },
+    Job {
+        print_job: job::PrintJob,
+        keep_up: KeepInterest,
+    },
 }
 
 struct ActiveConnection {
@@ -120,6 +131,11 @@ impl PhysicalPrinter {
             target: Arc::new(label),
             status: Arc::default(),
         }
+    }
+
+    /// Register yourself as wanting the physical connection high.
+    pub fn interest(&self) -> KeepInterest {
+        self.status.interest.uphold()
     }
 
     /// Get the serializable public status information for this printer.
@@ -163,17 +179,33 @@ impl PhysicalPrinter {
         // attempt is made immediately. This then restarts the delay.
         //
         // Note: the first tick is immediate meaning we do not wait with the initial connection.
-        let retry_fail = std::time::Duration::from_millis(1_000);
+        let retry_fail = self.target.config.connection.retry_fail;
         let mut interval_reconnect = tokio::time::interval(retry_fail);
         interval_reconnect
             .set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
-        let keepalive_interval = std::time::Duration::from_millis(1_000);
+        let keepalive_interval =
+            self.target.config.connection.status_report_interval;
         let mut interval_keepalive = tokio::time::interval(keepalive_interval);
         interval_keepalive
             .set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
-        let connection_timeout = std::time::Duration::from_millis(1_000);
+        let disconnect_interval = self.target.config.connection.idle_timeout;
+        let mut interval_disconnect =
+            tokio::time::interval(disconnect_interval);
+        interval_disconnect
+            .set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+        // Unless there is interest (e.g. by a queued jobed) in activating this connection, keep it
+        // idle and only spuriously check if the printer lies.
+        let disinterest_probe_interval =
+            self.target.config.connection.disinterest_probe_interval;
+        let mut interval_probe =
+            tokio::time::interval(disinterest_probe_interval);
+        interval_probe
+            .set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+        let connection_timeout = self.target.config.connection.connect_timeout;
 
         loop {
             if label_being_printed.is_empty()
@@ -182,13 +214,27 @@ impl PhysicalPrinter {
             {
                 interval_reconnect.tick().await;
 
+                let keep_open = tokio::select!(
+                    success = self.status.interest.wait_for_strong_interest() => {
+                        success
+                    },
+                    _ = interval_probe.tick() => {
+                        info!(
+                            "[{}]: Probing connection",
+                            con.name,
+                        );
+
+                        false
+                    },
+                );
+
                 info!(
                     "[{}]: Connecting to printer at {}",
                     con.name, self.target.config.addr
                 );
 
-                info!(
-                    "[{}]: Next reconnection attempt in {:?}",
+                debug!(
+                    "[{}]: Next reconnection attempt no sooner than {:?}",
                     con.name, retry_fail
                 );
 
@@ -204,7 +250,12 @@ impl PhysicalPrinter {
 
                     debug!("[{}]: Connection opened", name);
                     let device_status = printer.request_device_status().await?;
-                    info!("[{}]: Device status up", name);
+                    debug!("[{}]: Device status up\n{device_status:?}", name);
+
+                    if !keep_open {
+                        info!("[{}]: Connection probed, closing", name);
+                        return Ok(None);
+                    }
 
                     let device_status = device_status.clone();
 
@@ -226,7 +277,15 @@ impl PhysicalPrinter {
                         if let Err(error) = ready.verify().await {
                             warn!("[{}]: Connection broken {}", con.name, error);
                             let _ = active.take();
+                            interval_probe.reset();
                         }
+                    }
+                }
+                _ = interval_disconnect.tick(), if active.is_some() => {
+                    if !self.status.interest.has_strong_interest() {
+                        info!("[{}]: Connection closing due to idle", con.name);
+                        let _ = active.take();
+                        interval_probe.reset();
                     }
                 }
                 success = label_being_printed.join_next(), if is_connection_busy => {
@@ -235,6 +294,7 @@ impl PhysicalPrinter {
                             if ready.is_some() {
                                 info!("[{}]: Ready for next label in a few", con.name);
                                 interval_keepalive.reset();
+                                interval_disconnect.reset();
                             }
 
                             active = ready;
@@ -262,12 +322,13 @@ impl PhysicalPrinter {
                 // but the channel already is a buffer itself. That only makes sense if we want to
                 // do a re-ordering that the channel's sequential semantics does not permit.
                 job = con.message.recv(), if !is_connection_busy => {
-                    let Some(Task::Job{ print_job }) = job else {
+                    let Some(Task::Job{ print_job, keep_up }) = job else {
                         // Reached end of job queue.
                         break;
                     };
 
                     self.create_job(print_job, active.take(), &mut label_being_printed);
+                    drop(keep_up);
                 }
             );
 
@@ -360,6 +421,9 @@ async fn print_label(
     let seq = label.print(&options).await?;
     // tokio::fs::write("/tmp/zpl-debug", seq.to_string()).await?;
     con.printer.send(seq).await?;
+
+    // Not sure how many label we are printing but ensure they are done.
+    con.printer.wait_for_printed().await?;
 
     // No change in connection state, free to reuse it.
     Ok(Some(con))
@@ -461,11 +525,8 @@ impl Driver {
         (driver, con)
     }
 
-    pub async fn send_job(
-        &self,
-        print_job: job::PrintJob,
-    ) -> Result<(), &'static str> {
-        match self.message.try_send(Task::Job { print_job }) {
+    pub async fn send_job(&self, task: Task) -> Result<(), &'static str> {
+        match self.message.try_send(task) {
             Ok(_) => Ok(()),
             Err(_) => Err("failed to queue"),
         }

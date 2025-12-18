@@ -1,6 +1,5 @@
 /// Talk to the device.
 use crate::command;
-use log::debug;
 use tokio::{
     self,
     io::{self, AsyncWriteExt},
@@ -142,25 +141,99 @@ impl ZplPrinter {
         Ok(self.status.insert(info))
     }
 
+    pub async fn wait_for_printed(&mut self) -> std::io::Result<()> {
+        let commands = command::CommandSequence(vec![
+            command::ZplCommand::RequestHostStatus,
+        ]);
+
+        let mut remaining_labels = usize::MAX;
+        let mut waiting_in_peeloff = true;
+
+        loop {
+            let mut line_nr = 0;
+
+            self.send_with_response(commands.clone(), |line| {
+                if line_nr != 1 {
+                    line_nr += 1;
+                    return;
+                }
+
+                let mut parts = line.split(|&x| x == b',');
+                let st_waiting_in_peeloff = parts.nth(7);
+                let st_labels_in_batch = parts.next();
+
+                if let Some(nr) = st_waiting_in_peeloff
+                    .and_then(|st| str::from_utf8(st).ok())
+                    .and_then(|st| st.parse::<usize>().ok())
+                {
+                    remaining_labels = nr;
+                } else {
+                    log::warn!(
+                        "Unparsable remaining labels: {:?}",
+                        st_labels_in_batch
+                    );
+                }
+
+                waiting_in_peeloff = st_waiting_in_peeloff == Some(b"1");
+
+                if !matches!(st_waiting_in_peeloff, Some(b"1") | Some(b"0")) {
+                    log::warn!(
+                        "Unexpected waiting in peel-off: {:?}",
+                        st_waiting_in_peeloff
+                    );
+                }
+
+                line_nr += 1;
+            })
+            .await?;
+
+            if !waiting_in_peeloff && remaining_labels == 0 {
+                return Ok(());
+            }
+        }
+    }
+
     pub async fn send(
         &mut self,
         commands: command::CommandSequence,
     ) -> std::io::Result<()> {
+        self.send_with_response(commands, |_data| {}).await
+    }
+
+    async fn send_with_response(
+        &mut self,
+        commands: command::CommandSequence,
+        mut handler: impl FnMut(&[u8]),
+    ) -> std::io::Result<()> {
         // Send data to the printer
         let response_lines = commands.expected_response_lines();
-        for command in String::from(commands).lines() {
-            self.connection.write_all(command.as_bytes()).await?;
-        }
+        let (mut rx, mut tx) = tokio::io::split(&mut self.connection);
 
-        // Wait for incoming data
-        let mut buf = vec![];
-        for _ in 0..response_lines {
-            let line = read::line_with(&mut buf, &mut self.connection).await?;
-            debug!("{}", String::from_utf8_lossy(&line.string));
-        }
+        tokio::try_join!(
+            async move {
+                for command in String::from(commands).lines() {
+                    tx.write_all(command.as_bytes()).await?;
+                }
 
+                Ok::<_, std::io::Error>(())
+            },
+            async move {
+                let mut buf = vec![];
+
+                for _ in 0..response_lines {
+                    let line = read::line_with(&mut buf, &mut rx).await?;
+                    log::trace!("{}", String::from_utf8_lossy(&line.string));
+                    handler(&line.string);
+                }
+
+                Ok::<_, std::io::Error>(())
+            }
+        )?;
+
+        // If we have not waited for incoming data, delay a bit. Not sure why exactly we do this?
+        // But alas.
         if response_lines == 0 {
-            tokio::time::sleep(std::time::Duration::from_millis(10_000)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
         }
 
         Ok(())
@@ -178,7 +251,7 @@ fn split_line<const N: usize>(line: &[u8], data: [&mut dyn FromField; N]) {
         return;
     };
 
-    debug!("{line}");
+    log::trace!("{line}");
     for (st, field) in line.split(',').zip(data) {
         field.fill(st);
     }

@@ -9,6 +9,13 @@ pub struct Configuration {
     pub printers: HashMap<String, Arc<LabelPrinter>>,
 }
 
+impl Configuration {
+    pub async fn from_file(path: &Path) -> anyhow::Result<Self> {
+        let data = tokio::fs::read(path).await?;
+        Ok(serde_json::de::from_slice(&data)?)
+    }
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct Label {
     pub dimensions: LabelDimensions,
@@ -41,6 +48,9 @@ pub struct LabelPrinter {
     #[serde(default)]
     /// If this is not a physical printer, how do we handle it?
     pub virtualization: LabelVirtualization,
+
+    #[serde(default)]
+    pub connection: PrinterConnectionSettings,
 }
 
 #[derive(Deserialize, Serialize, Default)]
@@ -84,10 +94,34 @@ pub struct LabelCalibration {
     pub home_x: f32,
 }
 
-impl Configuration {
-    pub async fn from_file(path: &Path) -> anyhow::Result<Self> {
-        let data = tokio::fs::read(path).await?;
-        Ok(serde_json::de::from_slice(&data)?)
+#[derive(Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
+pub struct PrinterConnectionSettings {
+    pub retry_fail: std::time::Duration,
+
+    /// Within an active interval, how often to query device status?
+    pub status_report_interval: std::time::Duration,
+
+    /// When no job is active and the connection is dropped, how often to look for the device
+    /// anyways?
+    pub disinterest_probe_interval: std::time::Duration,
+
+    /// How long to wait when we try to establish a connection?
+    pub connect_timeout: std::time::Duration,
+
+    /// How long to wait with nothing todo until we drop the connection?
+    pub idle_timeout: std::time::Duration,
+}
+
+impl Default for PrinterConnectionSettings {
+    fn default() -> Self {
+        PrinterConnectionSettings {
+            retry_fail: std::time::Duration::from_secs(1),
+            status_report_interval: std::time::Duration::from_secs(10),
+            disinterest_probe_interval: std::time::Duration::from_secs(60),
+            connect_timeout: std::time::Duration::from_secs(1),
+            idle_timeout: std::time::Duration::from_secs(60),
+        }
     }
 }
 

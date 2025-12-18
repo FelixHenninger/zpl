@@ -20,6 +20,14 @@
 				"home_x": 2.0
 			}
 		},
+		"CERT-ZD611": {
+			"label": "51mm",
+			"addr": "192.168.1.52:9100",
+			"display_name": "CERT",
+			"calibration": {
+				"home_x": 2.0
+			}
+		},
 		"gx430t-virtualized": {
 			"label": "51mm",
 			"addr": "0.0.0.0:0",
