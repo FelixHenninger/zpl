@@ -33,6 +33,9 @@ pub enum PrintApiKind {
     #[serde(rename = "image")]
     #[non_exhaustive]
     Image { data: DataUri },
+    #[serde(rename = "typst")]
+    #[non_exhaustive]
+    Typst { code: String },
 }
 
 impl PrintApi {
@@ -41,6 +44,9 @@ impl PrintApi {
             PrintApiKind::Svg { code } => {
                 let tree = usvg::Tree::from_str(&code, Self::svg_options())?;
                 PrintJob::Svg { tree }
+            }
+            PrintApiKind::Typst { code } => {
+                PrintJob::Typst { code: code.clone() }
             }
             PrintApiKind::Image { data: uri } => {
                 let data = std::io::Cursor::new(uri.data.clone());
@@ -103,6 +109,7 @@ impl PrintApi {
 pub enum PrintJob {
     Svg { tree: usvg::Tree },
     Image { image: image::DynamicImage },
+    Typst { code: String },
 }
 
 impl PrintJob {
@@ -137,6 +144,9 @@ impl PrintJob {
                     w: Unit::Millimetres(cwidth),
                     h: Unit::Millimetres(cheight),
                 });
+            }
+            PrintJob::Typst { code } => {
+                label.content.push(LabelContent::Typst { code });
             }
         }
 

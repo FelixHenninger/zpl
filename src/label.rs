@@ -34,6 +34,9 @@ pub enum LabelContent {
         y: Unit,
         zoom: u32,
     },
+    Typst {
+        code: String,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -54,6 +57,13 @@ pub struct Label {
 pub struct PrintOptions {
     pub copies: u32,
     pub calibration: Option<PrintCalibration>,
+    pub render: RenderOptions,
+}
+
+#[derive(Default)]
+pub struct RenderOptions {
+    pub typst: Option<std::sync::Arc<zpl_typst::ZplHost>>,
+    pub label: Option<zpl_typst::PrinterLabel>,
 }
 
 pub struct PrintCalibration {
@@ -85,7 +95,10 @@ impl Label {
         }
     }
 
-    pub async fn render(&self) -> anyhow::Result<command::CommandSequence> {
+    pub async fn render(
+        &self,
+        options: &RenderOptions,
+    ) -> anyhow::Result<command::CommandSequence> {
         let mut output = CommandSequence(vec![]);
 
         for c in &self.content {
@@ -136,6 +149,54 @@ impl Label {
                     ));
                     output.push(ZplCommand::RenderImage(img_serialized));
                 }
+                LabelContent::Typst { code } => {
+                    let Some(typst_host) = &options.typst else {
+                        anyhow::bail!("Typst host not provided");
+                    };
+
+                    let Some(label) = &options.label else {
+                        anyhow::bail!("Typst label setup not provided");
+                    };
+
+                    let instance = typst_host
+                        .clone()
+                        .instantiate(code.clone(), label.clone());
+
+                    let pages =
+                        instance.render_to_svg_pages().map_err(|err| {
+                            anyhow::anyhow!("Typst compilation failed: {}", err)
+                        })?;
+
+                    let n = pages.len();
+
+                    for (i, page) in pages.iter().enumerate() {
+                        let tree = resvg::usvg::Tree::from_str(
+                            &page,
+                            &resvg::usvg::Options::default(),
+                        )
+                        .map_err(|err| {
+                            anyhow::anyhow!(
+                                "Could not parse typst SVG: {}",
+                                err
+                            )
+                        })?;
+
+                        let img_serialized =
+                            crate::util::image::SerializedImage::from_svg_tree(
+                                tree,
+                                self.width * self.dpmm,
+                                self.height * self.dpmm,
+                            )
+                            .context("Could not render SVG")?;
+
+                        output.push(ZplCommand::RenderImage(img_serialized));
+
+                        if i != n - 1 {
+                            output.push(ZplCommand::EndLabel);
+                            output.push(ZplCommand::StartLabel);
+                        }
+                    }
+                }
                 LabelContent::QrCode {
                     content,
                     x,
@@ -181,7 +242,7 @@ impl Label {
             ]));
         }
 
-        commands.append(self.render().await?);
+        commands.append(self.render(&options.render).await?);
 
         commands.append(CommandSequence(vec![
             ZplCommand::PrintQuantity {

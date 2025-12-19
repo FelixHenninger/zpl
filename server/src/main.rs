@@ -28,6 +28,7 @@ struct PrintResources {
     configuration: PathBuf,
     active_printer: JoinSet<()>,
     printer: HashMap<String, PrintQueue>,
+    typst: Arc<zpl_typst::ZplHost>,
 }
 
 struct PrintQueue {
@@ -63,7 +64,8 @@ async fn reload(State(state): State<Server>) -> String {
         };
 
         let (driver, con) = physical_printer::Driver::new(&printer);
-        let printer = physical_printer::PhysicalPrinter::new(printer);
+        let mut printer = physical_printer::PhysicalPrinter::new(printer);
+        printer.attach_typst(state.typst.clone());
 
         let con = con.with_name(name.clone());
         state.active_printer.spawn(printer.clone().drive(con));
@@ -151,6 +153,7 @@ impl Server {
                 configuration,
                 active_printer: Default::default(),
                 printer: Default::default(),
+                typst: zpl_typst::ZplHost::new(),
             })),
         }
     }

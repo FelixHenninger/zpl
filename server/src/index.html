@@ -13,7 +13,7 @@
         <label for="zpl-api-printer">Select Printer: </label>
         <input id="zpl-api-printer" class="zpl-input-newline" type="text" value="gx430t"></input>
         <label for="zpl-api-file">Select image (SVG or PNG): </label>
-        <input id="zpl-api-file"class="zpl-input-newline"  type="file" accept=".svg,image/svg+xml,.png,image/png"></input>
+        <input id="zpl-api-file"class="zpl-input-newline"  type="file" accept=".svg,image/svg+xml,.png,image/png,.typ"></input>
         <button id="zpl-api-print" disabled>Print this file</button>
         <picture>
           <img style="width: min(100%, 30em)" id="zpl-preview"></img>
@@ -174,6 +174,16 @@
             const uri = encodeB64(new Uint8Array(bytes));
             return {'image': { 'data': `data:application/png;base64,${uri}` }};
           },
+          ['text/typst']: async function(file) {
+            const data = await file.text();
+            return {'typst': { 'code': data } };
+          },
+        };
+
+        const on_ext = {
+          ['svg']: on_type['image/svg'],
+          ['png']: on_type['image/png'],
+          ['typ']: on_type['text/typst'],
         };
 
         on_type['image/svg+xml'] = on_type['image/svg'];
@@ -183,7 +193,8 @@
         };
 
         (async function() {
-          const processor = on_type[file.type] || error_reporter;
+          const ext = file.name.split('.').slice(-1);
+          const processor = on_type[file.type] || on_ext[ext] || error_reporter;
           const response = await fetch(`/api/v1/print/${printer}`, {
             method: 'POST',
             body: JSON.stringify(await processor(file)),

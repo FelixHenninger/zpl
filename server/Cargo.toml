@@ -16,6 +16,7 @@ zpl = { path = ".." }
 clap =  { version = "4.5.16", features = ["env"] }
 env_logger = "0.11.5"
 log = "0.4.22"
+zpl-typst = { path = "../typst" }
 
 [[bin]]
 name = "zpl-server"

@@ -4,7 +4,7 @@ use crate::{
     ShutdownToken,
 };
 
-use zpl::label::{PrintCalibration, PrintOptions, Unit};
+use zpl::label::{PrintCalibration, PrintOptions, RenderOptions, Unit};
 
 use log::{debug, error, info, warn};
 
@@ -43,6 +43,7 @@ pub struct LabelPrinter {
 pub struct PhysicalPrinter {
     target: Arc<LabelPrinter>,
     status: Arc<PrinterStatus>,
+    typst: Option<Arc<zpl_typst::ZplHost>>,
 }
 
 #[derive(Default)]
@@ -130,7 +131,13 @@ impl PhysicalPrinter {
         PhysicalPrinter {
             target: Arc::new(label),
             status: Arc::default(),
+            typst: None,
         }
+    }
+
+    /// Enable this printer to render typst labels.
+    pub fn attach_typst(&mut self, typst: Arc<zpl_typst::ZplHost>) {
+        self.typst = Some(typst);
     }
 
     /// Register yourself as wanting the physical connection high.
@@ -342,6 +349,8 @@ impl PhysicalPrinter {
         con: Option<ActiveConnection>,
         label_being_printed: &mut JoinSet<ConnectionHandled>,
     ) {
+        let typst = self.typst.clone();
+
         match &self.target.config.virtualization {
             configuration::LabelVirtualization::DropJobs {
                 wait_time,
@@ -355,7 +364,7 @@ impl PhysicalPrinter {
                 };
 
                 label_being_printed
-                    .spawn(simulation_label(con, print_job, simulation));
+                    .spawn(simulation_label(con, print_job, simulation, typst));
             }
             configuration::LabelVirtualization::ZplOnly {
                 dpmm,
@@ -370,12 +379,13 @@ impl PhysicalPrinter {
                 };
 
                 label_being_printed
-                    .spawn(simulation_label(con, print_job, simulation));
+                    .spawn(simulation_label(con, print_job, simulation, typst));
             }
             configuration::LabelVirtualization::Physical => {
                 let active = con
                     .expect("Pyshical connection re-spawned or still active");
-                label_being_printed.spawn(print_label(active, print_job));
+                label_being_printed
+                    .spawn(print_label(active, print_job, typst));
             }
         }
     }
@@ -397,6 +407,7 @@ impl PhysicalPrinter {
 async fn print_label(
     mut con: ActiveConnection,
     job: job::PrintJob,
+    typst: Option<Arc<zpl_typst::ZplHost>>,
 ) -> ConnectionHandled {
     let label = tokio::task::block_in_place(|| {
         job.into_label(
@@ -414,6 +425,19 @@ async fn print_label(
                 home_x: Unit::Millimetres(cfg.home_x),
             });
         }
+
+        let label = &con.target.label;
+
+        options.render.typst = typst;
+
+        options.render.label = Some(zpl_typst::PrinterLabel {
+            width: label.dimensions.width,
+            height: label.dimensions.height,
+            margin_left: label.dimensions.margin_left,
+            margin_right: label.dimensions.margin_right,
+            margin_top: label.dimensions.margin_top,
+            margin_bottom: label.dimensions.margin_bottom,
+        });
 
         options
     };
@@ -433,6 +457,7 @@ async fn simulation_label(
     con: Option<ActiveConnection>,
     job: job::PrintJob,
     sim: SimulationParameter,
+    typst: Option<Arc<zpl_typst::ZplHost>>,
 ) -> ConnectionHandled {
     let SimulationParameter {
         dpmm,
@@ -459,11 +484,24 @@ async fn simulation_label(
         host
     };
 
+    let render = RenderOptions {
+        typst: typst,
+        label: Some(zpl_typst::PrinterLabel {
+            width: target.label.dimensions.width,
+            height: target.label.dimensions.height,
+            margin_left: target.label.dimensions.margin_left,
+            margin_right: target.label.dimensions.margin_right,
+            margin_top: target.label.dimensions.margin_top,
+            margin_bottom: target.label.dimensions.margin_bottom,
+        }),
+        ..RenderOptions::default()
+    };
+
     let label = tokio::task::block_in_place(|| {
         job.into_label(&target.label.dimensions, &identification)
     });
 
-    let commands = label.render().await?;
+    let commands = label.render(&render).await?;
     // Loop once but also can break..
     while let Some(target) = persist.take() {
         let into = match tempfile::Builder::new()
