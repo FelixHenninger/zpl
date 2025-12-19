@@ -49,3 +49,12 @@ body header {
   animation-name: fade-in;
   animation-duration: 0.1s;
 }
+
+#zpl-preview {
+  max-height: max(50%, 30em);
+  overflow: scroll;
+}
+
+#zpl-preview picture img {
+  border: black 2px solid;
+}

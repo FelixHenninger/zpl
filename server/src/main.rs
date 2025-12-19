@@ -126,6 +126,63 @@ async fn push_job(
     }
 }
 
+async fn preview_job(
+    State(state): State<Server>,
+    Path(printer): Path<String>,
+    Json(payload): Json<job::PrintApi>,
+) -> Result<Json<job::Preview>, String> {
+    let inner = state.inner.read().await;
+    log::debug!("New job asked");
+
+    let Some(queue) = inner.printer.get(&printer) else {
+        return Err("No such printer".to_string());
+    };
+
+    let pages = match payload.kind {
+        job::PrintApiKind::Image { data } => {
+            vec![data]
+        }
+        job::PrintApiKind::Svg { code } => {
+            vec![data_uri::DataUri {
+                mime: "image/svg+xml".to_string(),
+                data: Arc::from(code.into_bytes()),
+            }]
+        }
+        job::PrintApiKind::Typst { code } => {
+            let status = queue.printer.status();
+
+            let label = {
+                let label = &status.printer_label.0.label.dimensions;
+
+                zpl_typst::PrinterLabel {
+                    width: label.width,
+                    height: label.height,
+                    margin_left: label.margin_left,
+                    margin_right: label.margin_right,
+                    margin_top: label.margin_top,
+                    margin_bottom: label.margin_bottom,
+                }
+            };
+
+            let world = inner.typst.clone().instantiate(code, label);
+            match world.render_to_svg_pages() {
+                Ok(pages) => pages
+                    .into_iter()
+                    .map(|svg| data_uri::DataUri {
+                        mime: "image/svg+xml".to_string(),
+                        data: Arc::from(svg.into_bytes()),
+                    })
+                    .collect(),
+                Err(err) => {
+                    return Err(format!("Typst rendering error: {}", err));
+                }
+            }
+        }
+    };
+
+    Ok(Json(job::Preview { pages }))
+}
+
 async fn status(State(state): State<Server>) -> String {
     let inner = state.inner.read().await;
 
@@ -162,6 +219,7 @@ async fn main() {
         .route("/api/v1/info", get(status))
         .route("/api/v1/reload", post(reload))
         .route("/api/v1/print/:printer", post(push_job))
+        .route("/api/v1/preview/:printer", post(preview_job))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(config.listen).await.unwrap();

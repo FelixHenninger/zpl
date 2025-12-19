@@ -2,7 +2,7 @@ use std::sync::{Arc, OnceLock};
 use tokio::sync::watch;
 
 use log::error;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use zpl::{
     command::HostIdentification,
@@ -152,6 +152,11 @@ impl PrintJob {
 
         label
     }
+}
+
+#[derive(Serialize)]
+pub struct Preview {
+    pub pages: Vec<DataUri>,
 }
 
 /// A resource that can be monitored for interest by other tasks.

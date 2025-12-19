@@ -31,8 +31,8 @@ use zpl::{
 };
 
 pub struct LabelPrinter {
-    config: Arc<configuration::LabelPrinter>,
-    label: Arc<configuration::Label>,
+    pub config: Arc<configuration::LabelPrinter>,
+    pub label: Arc<configuration::Label>,
 }
 
 /// A unique physical printer device.
@@ -61,15 +61,15 @@ struct PrinterStatus {
 
 #[derive(Serialize)]
 pub struct StatusInformation {
-    display_name: Option<String>,
-    printer_label: PrinterInformation,
-    is_up: bool,
-    updated_at_unix: u64,
+    pub display_name: Option<String>,
+    pub printer_label: PrinterInformation,
+    pub is_up: bool,
+    pub updated_at_unix: u64,
 }
 
 type ConnectionHandled = anyhow::Result<Option<ActiveConnection>>;
 
-struct PrinterInformation(Arc<LabelPrinter>);
+pub struct PrinterInformation(pub Arc<LabelPrinter>);
 
 impl Serialize for PrinterInformation {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

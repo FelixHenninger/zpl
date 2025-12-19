@@ -3,6 +3,11 @@
   <head>
     <meta charset="utf-8">
     <link rel="stylesheet" type="text/css" href="static/style.css"/>
+    <template id="zpl-preview-template">
+      <picture>
+        <img style="width: min(100%, 30em)" ></img>
+      </picture>
+    </template>
   </head>
   <body>
     <header>Web Portal for a dazzle of Zebra Printers</header>
@@ -15,9 +20,9 @@
         <label for="zpl-api-file">Select image (SVG or PNG): </label>
         <input id="zpl-api-file"class="zpl-input-newline"  type="file" accept=".svg,image/svg+xml,.png,image/png,.typ"></input>
         <button id="zpl-api-print" disabled>Print this file</button>
-        <picture>
-          <img style="width: min(100%, 30em)" id="zpl-preview"></img>
-        </picture>
+
+        <aside class="preview-container" id="zpl-preview">
+        </aside>
         <p id="zpl-status"></p>
       </form>
       <aside class="col col-1" style="order: -1">
@@ -84,6 +89,7 @@
       }
 
       async function regenerate_preview(element, file) {
+        console.log(file);
         let uri = URL.createObjectURL(file);
         element.src = uri;
       }
@@ -145,11 +151,66 @@
         regenerate_printer_info(info_el, info?.[value]);
       };
 
-      document.getElementById('zpl-api-file').oninput = function(ev) {
+      const on_type = {
+        ['image/svg']: async function(file) {
+          const data = await file.text();
+          return {'svg': { 'code': data } };
+        },
+        ['image/png']: async function(file) {
+          const bytes = await file.arrayBuffer();
+          const uri = encodeB64(new Uint8Array(bytes));
+          return {'image': { 'data': `data:application/png;base64,${uri}` }};
+        },
+        ['text/typst']: async function(file) {
+          const data = await file.text();
+          return {'typst': { 'code': data } };
+        },
+      };
+
+      const on_ext = {
+        ['svg']: on_type['image/svg'],
+        ['png']: on_type['image/png'],
+        ['typ']: on_type['text/typst'],
+      };
+
+      on_type['image/svg+xml'] = on_type['image/svg'];
+
+      document.getElementById('zpl-api-file').oninput = async function(ev) {
         if (ev.target.files) {
           document.getElementById('zpl-api-print').disabled = false;
           const [file] = ev.target.files;
-          regenerate_preview(document.getElementById('zpl-preview'), file);
+
+          const ext = file.name.split('.').slice(-1);
+          const processor = on_type[file.type] || on_ext[ext] || error_reporter;
+
+          const printer = document.getElementById('zpl-api-printer').value;
+          const response = await fetch(`/api/v1/preview/${printer}`, {
+            method: 'POST',
+            body: JSON.stringify(await processor(file)),
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          const data = await response.json();
+
+          const preview = document.getElementById('zpl-preview');
+          const el = document.getElementById('zpl-preview-template').content.firstElementChild;
+
+          while (preview.children.length > data.pages.length) {
+            preview.removeChild(preview.lastChild);
+          }
+
+          while (preview.children.length < data.pages.length) {
+            preview.appendChild(el.cloneNode(true));
+          }
+
+          for (let i = 0; i < data.pages.length; i++) {
+            const page = data.pages[i];
+            const contents = await fetch(page);
+            // This is a <picture><img> stack each so pivot down.
+            regenerate_preview(preview.children[i].firstElementChild, await contents.blob());
+          }
         } else {
           document.getElementById('zpl-api-print').disabled = true;
         }
@@ -163,30 +224,6 @@
         }
 
         const printer = document.getElementById('zpl-api-printer').value;
-
-        const on_type = {
-          ['image/svg']: async function(file) {
-            const data = await file.text();
-            return {'svg': { 'code': data } };
-          },
-          ['image/png']: async function(file) {
-            const bytes = await file.arrayBuffer();
-            const uri = encodeB64(new Uint8Array(bytes));
-            return {'image': { 'data': `data:application/png;base64,${uri}` }};
-          },
-          ['text/typst']: async function(file) {
-            const data = await file.text();
-            return {'typst': { 'code': data } };
-          },
-        };
-
-        const on_ext = {
-          ['svg']: on_type['image/svg'],
-          ['png']: on_type['image/png'],
-          ['typ']: on_type['text/typst'],
-        };
-
-        on_type['image/svg+xml'] = on_type['image/svg'];
 
         const error_reporter = async function(file) {
           console.log(`Can't understand image type ${file.type}`);

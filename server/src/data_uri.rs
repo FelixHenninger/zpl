@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use base64::{engine::GeneralPurpose, Engine as _};
 use serde::de::{Deserialize, Error, Unexpected};
+use serde::ser::Serialize;
 
 /// A serde compatible decoding of a data URI.
 ///
@@ -45,7 +46,7 @@ impl<'lt> Deserialize<'lt> for DataUri {
         let mime = mime_part.to_owned();
         let data = if is_base64 {
             match GeneralPurpose::new(
-                &base64::alphabet::URL_SAFE,
+                &base64::alphabet::STANDARD,
                 base64::engine::GeneralPurposeConfig::default()
                     .with_decode_padding_mode(
                         base64::engine::DecodePaddingMode::Indifferent,
@@ -68,6 +69,22 @@ impl<'lt> Deserialize<'lt> for DataUri {
         };
 
         Ok(DataUri { mime, data })
+    }
+}
+
+impl Serialize for DataUri {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let engine = GeneralPurpose::new(
+            &base64::alphabet::STANDARD,
+            base64::engine::GeneralPurposeConfig::default(),
+        );
+
+        let data = base64::display::Base64Display::new(&self.data, &engine);
+        let value = format!("data:{};base64,{}", self.mime, data);
+        serializer.serialize_str(&value)
     }
 }
 
