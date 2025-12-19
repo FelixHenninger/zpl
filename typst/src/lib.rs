@@ -55,6 +55,7 @@ impl World for ZplWorld {
     }
 
     fn source(&self, id: FileId) -> Result<Source, FileError> {
+        eprintln!("Loading source: {id:?}");
         if id == self.main {
             return Ok(self.main_source.clone());
         }
@@ -66,13 +67,16 @@ impl World for ZplWorld {
         let vpath = id.vpath().as_rootless_path();
         let abspath = root.join(vpath);
 
+        eprintln!("Okay: {}", abspath.display());
         let data = std::fs::read_to_string(&abspath)
             .map_err(|io| FileError::from_io(io, vpath))?;
 
+        eprintln!("Okay: {id:?}");
         return Ok(Source::new(id, data));
     }
 
     fn file(&self, id: FileId) -> Result<Bytes, FileError> {
+        eprintln!("Loading file: {id:?}");
         if id == self.main {
             return Ok(Bytes::from_string(self.main_source.text().to_owned()));
         }
@@ -93,8 +97,14 @@ impl World for ZplWorld {
         self.host.fonts.get(index).cloned()
     }
 
-    fn today(&self, _: Option<i64>) -> Option<Datetime> {
-        None
+    fn today(&self, offset: Option<i64>) -> Option<Datetime> {
+        if offset.is_some() {
+            return None;
+        }
+
+        let now = time::UtcDateTime::now();
+        let now = time::PrimitiveDateTime::new(now.date(), now.time());
+        Some(Datetime::Datetime(now))
     }
 }
 
