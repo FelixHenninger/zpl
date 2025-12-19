@@ -55,6 +55,24 @@ async fn reload(State(state): State<Server>) -> String {
     // should be dropped by themselves? Maybe we should just shove them into the background.
     while let Some(_next) = state.active_printer.join_next().await {}
 
+    {
+        let mut host = zpl_typst::ZplHost::builder();
+
+        if let Some(root) = &configuration.typst_root {
+            // Ensure that is an absolute path.
+            let root = match root.canonicalize() {
+                Ok(path) => path,
+                Err(err) => {
+                    return err.to_string();
+                }
+            };
+
+            host = host.with_root(root);
+        }
+
+        state.typst = host.build();
+    }
+
     for (name, printer) in &configuration.printers {
         let Some(printer) = physical_printer::LabelPrinter::new(
             &configuration,
@@ -131,7 +149,11 @@ async fn main() {
     let config = App::parse();
     let state = Server::new(config.configuration.into());
 
-    assert_eq!(reload(State(state.clone())).await, "Success");
+    // This ensures that reload is the canonical way of loading configuration etc, which is
+    // asynchronous and ensures you can change anything while running.
+    let initial_load = reload(State(state.clone())).await;
+
+    assert_eq!(initial_load, "Success");
 
     let app = Router::new()
         .route("/", get(spa::frontpage))

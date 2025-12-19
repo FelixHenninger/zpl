@@ -7,6 +7,8 @@ use std::{collections::HashMap, net::SocketAddr, path::Path, sync::Arc};
 pub struct Configuration {
     pub labels: HashMap<LabelIdentifier, Arc<Label>>,
     pub printers: HashMap<String, Arc<LabelPrinter>>,
+    /// Root directory for typst files that may be imported.
+    pub typst_root: Option<std::path::PathBuf>,
 }
 
 impl Configuration {

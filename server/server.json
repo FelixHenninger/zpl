@@ -43,5 +43,6 @@
 				}
 			}
 		}
-	}
+	},
+	"typst_root": "/tmp/zpl_typst"
 }

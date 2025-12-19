@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use typst::{
     Library, World,
@@ -22,6 +22,7 @@ pub struct ZplWorld {
 pub struct ZplHost {
     fonts: Vec<Font>,
     font_book: LazyHash<FontBook>,
+    root: Option<PathBuf>,
 }
 
 #[derive(serde::Serialize, Clone)]
@@ -54,21 +55,38 @@ impl World for ZplWorld {
     }
 
     fn source(&self, id: FileId) -> Result<Source, FileError> {
-        if id != self.main {
-            eprintln!("Denied access to source id {:?}", id);
-            return Err(FileError::AccessDenied);
+        if id == self.main {
+            return Ok(self.main_source.clone());
         }
 
-        Ok(self.main_source.clone())
+        let Some(root) = &self.host.root else {
+            return Err(FileError::AccessDenied);
+        };
+
+        let vpath = id.vpath().as_rootless_path();
+        let abspath = root.join(vpath);
+
+        let data = std::fs::read_to_string(&abspath)
+            .map_err(|io| FileError::from_io(io, vpath))?;
+
+        return Ok(Source::new(id, data));
     }
 
     fn file(&self, id: FileId) -> Result<Bytes, FileError> {
-        if id != self.main {
-            eprintln!("Denied access to file id {:?}", id);
-            return Err(FileError::AccessDenied);
+        if id == self.main {
+            return Ok(Bytes::from_string(self.main_source.text().to_owned()));
         }
 
-        Ok(Bytes::from_string(self.main_source.text().to_owned()))
+        let Some(root) = &self.host.root else {
+            return Err(FileError::AccessDenied);
+        };
+
+        let vpath = id.vpath().as_rootless_path();
+        let abspath = root.join(vpath);
+        let data = std::fs::read(&abspath)
+            .map_err(|io| FileError::from_io(io, vpath))?;
+
+        return Ok(Bytes::new(data));
     }
 
     fn font(&self, index: usize) -> Option<Font> {
@@ -81,7 +99,7 @@ impl World for ZplWorld {
 }
 
 impl ZplHost {
-    pub fn new() -> Arc<Self> {
+    pub fn builder() -> ZplHost {
         let mut fonts = vec![];
 
         let font_bytes = Bytes::new(include_bytes!(
@@ -90,10 +108,26 @@ impl ZplHost {
 
         fonts.extend(Font::iter(font_bytes));
 
-        Arc::new(ZplHost {
+        ZplHost {
             font_book: LazyHash::new(FontBook::from_fonts(fonts.iter())),
             fonts,
-        })
+            root: None,
+        }
+    }
+
+    pub fn with_root(self, root: PathBuf) -> ZplHost {
+        ZplHost {
+            root: Some(root),
+            ..self
+        }
+    }
+
+    pub fn build(self) -> Arc<Self> {
+        Arc::new(self)
+    }
+
+    pub fn new() -> Arc<Self> {
+        Self::builder().build()
     }
 
     pub fn instantiate(
