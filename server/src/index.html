@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <link rel="stylesheet" type="text/css" href="static/style.css"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <template id="zpl-preview-template">
       <picture>
         <img style="width: min(100%, 30em)" ></img>
@@ -14,10 +15,13 @@
 
     <!-- Three column layout -->
     <main>
-      <form class="col col-2">
-        <label for="zpl-api-printer">Select Printer: </label>
-        <input id="zpl-api-printer" class="zpl-input-newline" type="text" value="gx430t"></input>
-        <label for="zpl-api-file">Select image (SVG or PNG): </label>
+      <form class="col col-prio-1">
+        <h2 id="zpl-main-header">
+          <label for="zpl-api-printer">Choose Printer: </label>
+          <input id="zpl-api-printer" class="zpl-input-newline" type="text" value="gx430t"></input>
+        </h2>
+
+        <label for="zpl-api-file">Label input (SVG, PNG, typst): </label>
         <input id="zpl-api-file"class="zpl-input-newline"  type="file" accept=".svg,image/svg+xml,.png,image/png,.typ"></input>
         <button id="zpl-api-print" disabled>Print this file</button>
 
@@ -25,12 +29,12 @@
         </aside>
         <p id="zpl-status"></p>
       </form>
-      <aside class="col col-1" style="order: -1">
+      <aside class="col col-prio-2">
         <h2>Printer Information</h2>
         <!-- For printer status information -->
         <div id="zpl-printer-info"></div>
       </aside>
-      <aside class="col col-2" style="order: 1">
+      <aside class="col col-prio-2">
         <h2>Running Print Jobs</h2>
         <!-- Running print status -->
         <div id="zpl-label-status"></div>

@@ -1,9 +1,29 @@
 {
 	"labels": {
-		"51mm": {
+		"20in": {
 			"dimensions": {
 				"width": 51.0,
 				"height": 51.0,
+				"margin_left": 1.0,
+				"margin_right": 1.0,
+				"margin_top": 1.0,
+				"margin_bottom": 1.0
+			}
+		},
+		"20in×12in": {
+			"dimensions": {
+				"width": 51.0,
+				"height": 30.5,
+				"margin_left": 1.0,
+				"margin_right": 1.0,
+				"margin_top": 1.0,
+				"margin_bottom": 1.0
+			}
+		},
+		"200mm×80mm": {
+			"dimensions": {
+				"width": 80.0,
+				"height": 200.0,
 				"margin_left": 1.0,
 				"margin_right": 1.0,
 				"margin_top": 1.0,
@@ -13,7 +33,7 @@
 	},
 	"printers": {
 		"gx430t": {
-			"label": "51mm",
+			"label": "20in",
 			"addr": "192.168.179.111:9100",
 			"display_name": "Porkhy",
 			"calibration": {
@@ -21,15 +41,23 @@
 			}
 		},
 		"CERT-ZD611": {
-			"label": "51mm",
+			"label": "20in×12in",
 			"addr": "192.168.1.52:9100",
 			"display_name": "CERT",
 			"calibration": {
 				"home_x": 2.0
 			}
 		},
+		"CERT-ZD612": {
+			"label": "200mm×80mm",
+			"addr": "192.168.1.47:9100",
+			"display_name": "CERT-Big",
+			"calibration": {
+				"home_x": 2.0
+			}
+		},
 		"gx430t-virtualized": {
-			"label": "51mm",
+			"label": "20in",
 			"addr": "0.0.0.0:0",
 			"display_name": "Virtual Printer (test)",
 			"virtualization": {

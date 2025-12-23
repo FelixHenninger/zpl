@@ -6,23 +6,47 @@
 	display: block;
 }
 
+#zpl-main-header {
+  display: grid;
+  align-content: center;
+  justify-content: center;
+  grid-template-columns: 30% 30%;
+}
+
+#zpl-main-header > label,input {
+  display: inline-block;
+}
+
 main {
 	display: flex;
 	justify-content: center;
 	flex-wrap: wrap;
 }
 
-main .col-1 {
-	flex-grow: 1;
-}
-
-main .col-2 {
+main .col-prio-1 {
 	flex-grow: 2;
 }
 
-@media( min-width: 20em ) {
+/* When switching to true three column layout, the main moves to the middle not the front */
+@media( min-width: 60em ) {
+  main :nth-child(1 of .col-prio-2) {
+    order: -1;
+  }
+}
+
+main .col-prio-2 {
+	flex-grow: 1;
+}
+
+main > .col {
+  min-width: 20em;
+  flex-basis: 20em;
+}
+
+@media( min-width: 90em ) {
 	main .col {
-		min-width: 20em;
+		min-width: 30em;
+    flex-basis: 30em;
 	}
 }
 
