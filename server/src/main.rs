@@ -78,6 +78,7 @@ async fn reload(State(state): State<Server>) -> String {
             &configuration,
             printer.clone(),
         ) else {
+            log::warn!("Skipping printer {} due to invalid configuration", name);
             continue;
         };
 
@@ -201,7 +202,10 @@ async fn status(State(state): State<Server>) -> String {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
-    env_logger::init();
+    env_logger::Builder::default()
+        .filter(None, log::LevelFilter::Warn)
+        .parse_env(std::env::var("RUST_LOG").unwrap_or_default())
+        .init();
 
     let config = App::parse();
     let state = Server::new(config.configuration.into());
