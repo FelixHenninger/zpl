@@ -20,9 +20,9 @@
 				"margin_bottom": 1.0
 			}
 		},
-		"200mm×80mm": {
+		"200mm×99mm": {
 			"dimensions": {
-				"width": 80.0,
+				"width": 99.0,
 				"height": 200.0,
 				"margin_left": 1.0,
 				"margin_right": 1.0,
@@ -49,7 +49,7 @@
 			}
 		},
 		"CERT-ZD612": {
-			"label": "200mm×80mm",
+			"label": "200mm×99mm",
 			"addr": "192.168.1.47:9100",
 			"display_name": "CERT-Big",
 			"calibration": {
