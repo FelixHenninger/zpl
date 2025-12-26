@@ -112,11 +112,16 @@ impl ZplHost {
     pub fn builder() -> ZplHost {
         let mut fonts = vec![];
 
-        let font_bytes = Bytes::new(include_bytes!(
-            "/usr/share/fonts/gsfonts/NimbusSans-Regular.otf"
-        ));
-
-        fonts.extend(Font::iter(font_bytes));
+        if let Ok(tf) =
+            std::fs::read("/usr/share/fonts/gsfonts/NimbusSans-Regular.otf")
+        {
+            let font_bytes = Bytes::new(tf);
+            fonts.extend(Font::iter(font_bytes));
+        } else {
+            eprintln!(
+                "Could not load NimbusSans-Regular.otf from system fonts, we're running without text rendering"
+            );
+        }
 
         ZplHost {
             font_book: LazyHash::new(FontBook::from_fonts(fonts.iter())),
