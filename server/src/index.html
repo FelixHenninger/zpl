@@ -149,10 +149,51 @@
         /* */
       }
 
+      async function regenerate_file_info(files) {
+        const [file] = files || document.getElementById('zpl-api-file').files || [];
+
+        if (file == undefined) {
+          return;
+        }
+
+        const ext = file.name.split('.').slice(-1);
+        const processor = on_type[file.type] || on_ext[ext] || error_reporter;
+
+        const printer = document.getElementById('zpl-api-printer').value;
+        const response = await fetch(`/api/v1/preview/${printer}`, {
+          method: 'POST',
+          body: JSON.stringify(await processor(file)),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        const data = await response.json();
+
+        const preview = document.getElementById('zpl-preview');
+        const el = document.getElementById('zpl-preview-template').content.firstElementChild;
+
+        while (preview.children.length > data.pages.length) {
+          preview.removeChild(preview.lastChild);
+        }
+
+        while (preview.children.length < data.pages.length) {
+          preview.appendChild(el.cloneNode(true));
+        }
+
+        for (let i = 0; i < data.pages.length; i++) {
+          const page = data.pages[i];
+          const contents = await fetch(page);
+          // This is a <picture><img> stack each so pivot down.
+          regenerate_preview(preview.children[i].firstElementChild, await contents.blob());
+        }
+      }
+
       let onchange_printer = function(ev, info) {
         const info_el = document.getElementById('zpl-printer-info');
         const value = document.getElementById('zpl-api-printer').value;
         regenerate_printer_info(info_el, info?.[value]);
+        regenerate_file_info();
       };
 
       const on_type = {
@@ -182,39 +223,7 @@
       document.getElementById('zpl-api-file').oninput = async function(ev) {
         if (ev.target.files) {
           document.getElementById('zpl-api-print').disabled = false;
-          const [file] = ev.target.files;
-
-          const ext = file.name.split('.').slice(-1);
-          const processor = on_type[file.type] || on_ext[ext] || error_reporter;
-
-          const printer = document.getElementById('zpl-api-printer').value;
-          const response = await fetch(`/api/v1/preview/${printer}`, {
-            method: 'POST',
-            body: JSON.stringify(await processor(file)),
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
-
-          const data = await response.json();
-
-          const preview = document.getElementById('zpl-preview');
-          const el = document.getElementById('zpl-preview-template').content.firstElementChild;
-
-          while (preview.children.length > data.pages.length) {
-            preview.removeChild(preview.lastChild);
-          }
-
-          while (preview.children.length < data.pages.length) {
-            preview.appendChild(el.cloneNode(true));
-          }
-
-          for (let i = 0; i < data.pages.length; i++) {
-            const page = data.pages[i];
-            const contents = await fetch(page);
-            // This is a <picture><img> stack each so pivot down.
-            regenerate_preview(preview.children[i].firstElementChild, await contents.blob());
-          }
+          regenerate_file_info(ev.target.files);
         } else {
           document.getElementById('zpl-api-print').disabled = true;
         }
