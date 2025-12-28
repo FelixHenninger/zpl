@@ -45,8 +45,8 @@
       let zpl_global = { configuration: {} };
 
       function encodeB64(buffer) {
-        // URL safe flavor.
-        ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+        // Standard flavor.
+        ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 
         const encoded_length = 0|(buffer.length / 3 * 4 + 0.9);
         let o = Array.from('='.repeat(encoded_length));
