@@ -78,7 +78,10 @@ async fn reload(State(state): State<Server>) -> String {
             &configuration,
             printer.clone(),
         ) else {
-            log::warn!("Skipping printer {} due to invalid configuration", name);
+            log::warn!(
+                "Skipping printer {} due to invalid configuration",
+                name
+            );
             continue;
         };
 
@@ -139,47 +142,35 @@ async fn preview_job(
         return Err("No such printer".to_string());
     };
 
-    let pages = match payload.kind {
-        job::PrintApiKind::Image { data } => {
-            vec![data]
-        }
-        job::PrintApiKind::Svg { code } => {
-            vec![data_uri::DataUri {
-                mime: "image/svg+xml".to_string(),
-                data: Arc::from(code.into_bytes()),
-            }]
-        }
-        job::PrintApiKind::Typst { code } => {
-            let status = queue.printer.status();
-
-            let label = {
-                let label = &status.printer_label.0.label.dimensions;
-
-                zpl_typst::PrinterLabel {
-                    width: label.width,
-                    height: label.height,
-                    margin_left: label.margin_left,
-                    margin_right: label.margin_right,
-                    margin_top: label.margin_top,
-                    margin_bottom: label.margin_bottom,
-                }
-            };
-
-            let world = inner.typst.clone().instantiate(code, label);
-            match world.render_to_svg_pages() {
-                Ok(pages) => pages
-                    .into_iter()
-                    .map(|svg| data_uri::DataUri {
-                        mime: "image/svg+xml".to_string(),
-                        data: Arc::from(svg.into_bytes()),
-                    })
-                    .collect(),
-                Err(err) => {
-                    return Err(format!("Typst rendering error: {}", err));
-                }
-            }
-        }
+    let job = match payload.validate_as_job() {
+        Ok(job) => job,
+        Err(error) => return Err(error.to_string()),
     };
+
+    let Some(host) = queue.printer.host() else {
+        return Err("Printer not yet reached, no preview".to_string());
+    };
+
+    let status = queue.printer.status();
+    let label = job.into_label(&status.printer_label.0.label.dimensions, &host);
+
+    let mut options = queue.printer.status().printer_label.0.print_options();
+    options.render.typst = Some(inner.typst.clone());
+
+    let mut pages: Vec<data_uri::DataUri> = vec![];
+
+    label
+        .render_with_page_callback(&options.render, |img| {
+            let mut img_data = std::io::Cursor::new(vec![]);
+            img.write_to(&mut img_data, image::ImageFormat::Png)
+                .unwrap();
+            pages.push(data_uri::DataUri {
+                mime: "image/png".to_string(),
+                data: Arc::from(img_data.into_inner()),
+            })
+        })
+        .await
+        .map_err(|err| err.to_string())?;
 
     Ok(Json(job::Preview { pages }))
 }

@@ -4,7 +4,7 @@ use crate::{
     ShutdownToken,
 };
 
-use zpl::label::{PrintCalibration, PrintOptions, RenderOptions, Unit};
+use zpl::label::{PrintCalibration, PrintOptions, Unit};
 
 use log::{debug, error, info, warn};
 
@@ -57,6 +57,7 @@ struct PrinterStatus {
     /// Uphold this to ensure the connection to the printer does not go idle. In idle, the printer
     /// connection is only opened every couple of minutes and then dropped again.
     interest: Interest,
+    host: std::sync::RwLock<Option<HostIdentification>>,
 }
 
 #[derive(Serialize)]
@@ -124,13 +125,59 @@ impl LabelPrinter {
             label: label.clone(),
         })
     }
+
+    fn default_status(&self) -> PrinterStatus {
+        let mut status = PrinterStatus::default();
+
+        if let configuration::LabelVirtualization::ZplOnly { dpmm, .. } =
+            &self.config.virtualization
+        {
+            if let Some(dpmm) = *dpmm {
+                status.host =
+                    std::sync::RwLock::new(Some(HostIdentification {
+                        model: "Emulated non-Zebra".to_string(),
+                        version: "0.0".to_string(),
+                        dpmm,
+                        memory: "synthetic".to_string(),
+                    }));
+            }
+        }
+
+        status
+    }
+
+    pub fn print_options(&self) -> PrintOptions {
+        let mut options = PrintOptions::default();
+
+        options.copies = 1;
+        if let Some(cfg) = &self.config.calibration {
+            options.calibration = Some(PrintCalibration {
+                home_x: Unit::Millimetres(cfg.home_x),
+            });
+        }
+
+        let label = &self.label;
+
+        options.render.label = Some(zpl_typst::PrinterLabel {
+            width: label.dimensions.width,
+            height: label.dimensions.height,
+            margin_left: label.dimensions.margin_left,
+            margin_right: label.dimensions.margin_right,
+            margin_top: label.dimensions.margin_top,
+            margin_bottom: label.dimensions.margin_bottom,
+        });
+
+        options.render.auto_rotate = label.can_rotate;
+
+        options
+    }
 }
 
 impl PhysicalPrinter {
     pub fn new(label: LabelPrinter) -> Self {
         PhysicalPrinter {
+            status: Arc::new(label.default_status()),
             target: Arc::new(label),
-            status: Arc::default(),
             typst: None,
         }
     }
@@ -143,6 +190,10 @@ impl PhysicalPrinter {
     /// Register yourself as wanting the physical connection high.
     pub fn interest(&self) -> KeepInterest {
         self.status.interest.uphold()
+    }
+
+    pub fn host(&self) -> Option<HostIdentification> {
+        (*self.status.host.read().unwrap()).clone()
     }
 
     /// Get the serializable public status information for this printer.
@@ -248,6 +299,8 @@ impl PhysicalPrinter {
                 let label = self.target.clone();
                 let name = con.name.clone();
 
+                let status_for_update = self.status.clone();
+
                 label_being_printed.spawn(async move {
                     let mut printer = tokio::time::timeout(
                         connection_timeout,
@@ -265,6 +318,9 @@ impl PhysicalPrinter {
                     }
 
                     let device_status = device_status.clone();
+
+                    *status_for_update.host.write().unwrap() =
+                        Some(device_status.identification.clone());
 
                     Ok(Some(ActiveConnection {
                         printer,
@@ -416,31 +472,8 @@ async fn print_label(
         )
     });
 
-    let options = {
-        let mut options = PrintOptions::default();
-
-        options.copies = 1;
-        if let Some(cfg) = &con.target.config.calibration {
-            options.calibration = Some(PrintCalibration {
-                home_x: Unit::Millimetres(cfg.home_x),
-            });
-        }
-
-        let label = &con.target.label;
-
-        options.render.typst = typst;
-
-        options.render.label = Some(zpl_typst::PrinterLabel {
-            width: label.dimensions.width,
-            height: label.dimensions.height,
-            margin_left: label.dimensions.margin_left,
-            margin_right: label.dimensions.margin_right,
-            margin_top: label.dimensions.margin_top,
-            margin_bottom: label.dimensions.margin_bottom,
-        });
-
-        options
-    };
+    let mut options = con.target.print_options();
+    options.render.typst = typst;
 
     let seq = label.print(&options).await?;
     // tokio::fs::write("/tmp/zpl-debug", seq.to_string()).await?;
@@ -484,24 +517,14 @@ async fn simulation_label(
         host
     };
 
-    let render = RenderOptions {
-        typst: typst,
-        label: Some(zpl_typst::PrinterLabel {
-            width: target.label.dimensions.width,
-            height: target.label.dimensions.height,
-            margin_left: target.label.dimensions.margin_left,
-            margin_right: target.label.dimensions.margin_right,
-            margin_top: target.label.dimensions.margin_top,
-            margin_bottom: target.label.dimensions.margin_bottom,
-        }),
-        ..RenderOptions::default()
-    };
+    let mut options = target.print_options();
+    options.render.typst = typst;
 
     let label = tokio::task::block_in_place(|| {
         job.into_label(&target.label.dimensions, &identification)
     });
 
-    let commands = label.render(&render).await?;
+    let commands = label.render(&options.render).await?;
     // Loop once but also can break..
     while let Some(target) = persist.take() {
         let into = match tempfile::Builder::new()

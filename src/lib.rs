@@ -32,13 +32,20 @@ pub struct Args {
     copies: NonZeroU32,
 
     #[arg(long = "margin", default_value = "5", help = "xy margin in mm")]
-    margin: u32,
+    margin: f32,
 
     #[arg(long = "width", default_value = "51", help = "label width in mm")]
     width: u32,
 
     #[arg(long = "height", default_value = "51", help = "label height in mm")]
     height: u32,
+
+    #[arg(
+        long = "auto-rotate",
+        default_value = "true",
+        help = "turn the label on its side based on aspect ratio?"
+    )]
+    auto_rotate: bool,
 
     #[arg(
         long = "dpmm",
@@ -62,6 +69,7 @@ pub async fn make_label(
         margin,
         width,
         height,
+        auto_rotate,
         dpmm: dpmm_override,
         output_zpl_only: _,
     } = args;
@@ -110,7 +118,19 @@ pub async fn make_label(
     let commands = label
         .print(&label::PrintOptions {
             copies: copies.get(),
-            ..Default::default()
+            render: label::RenderOptions {
+                auto_rotate,
+                label: Some(zpl_typst::PrinterLabel {
+                    width: args.width as f32,
+                    height: args.height as f32,
+                    margin_left: args.margin,
+                    margin_right: args.margin,
+                    margin_top: args.margin,
+                    margin_bottom: args.margin,
+                }),
+                ..Default::default()
+            },
+            ..label::PrintOptions::default()
         })
         .await?;
 

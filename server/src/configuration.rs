@@ -20,7 +20,11 @@ impl Configuration {
 
 #[derive(Deserialize, Serialize)]
 pub struct Label {
+    /// How big is this print label in the real world.
     pub dimensions: LabelDimensions,
+    /// Can the label be printed on its side ("landscape mode")?
+    #[serde(default)]
+    pub can_rotate: bool,
 }
 
 /// Identifies a label type.

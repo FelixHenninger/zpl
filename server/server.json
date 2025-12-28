@@ -8,7 +8,8 @@
 				"margin_right": 1.0,
 				"margin_top": 1.0,
 				"margin_bottom": 1.0
-			}
+			},
+			"can_rotate": true
 		},
 		"20in×12in": {
 			"dimensions": {
@@ -18,7 +19,8 @@
 				"margin_right": 1.0,
 				"margin_top": 1.0,
 				"margin_bottom": 1.0
-			}
+			},
+			"can_rotate": true
 		},
 		"200mm×99mm": {
 			"dimensions": {
@@ -28,7 +30,8 @@
 				"margin_right": 1.0,
 				"margin_top": 1.0,
 				"margin_bottom": 1.0
-			}
+			},
+			"can_rotate": true
 		}
 	},
 	"printers": {

@@ -108,8 +108,9 @@ impl SerializedImage {
         svg: String,
         pix_width: u32,
         pix_height: u32,
+        options: &crate::label::RenderOptions,
     ) -> Result<Self, svg::Error> {
-        let img = svg::render_svg(svg, pix_width, pix_height)?;
+        let img = svg::render_svg(svg, pix_width, pix_height, options)?;
         Ok(Self::new_z64(&img))
     }
 
@@ -117,8 +118,9 @@ impl SerializedImage {
         svg: resvg::usvg::Tree,
         pix_width: u32,
         pix_height: u32,
+        options: &crate::label::RenderOptions,
     ) -> Result<Self, svg::Error> {
-        let img = svg::render_svg_tree(svg, pix_width, pix_height)?;
+        let img = svg::render_svg_tree(svg, pix_width, pix_height, options)?;
         Ok(Self::new_z64(&img))
     }
 }

@@ -1,5 +1,3 @@
-use anyhow::Context;
-
 use crate::command::{
     self, BackfeedSequence, CommandSequence, MediaTracking, MediaType,
     PostPrintAction, ZplCommand,
@@ -64,6 +62,7 @@ pub struct PrintOptions {
 pub struct RenderOptions {
     pub typst: Option<std::sync::Arc<zpl_typst::ZplHost>>,
     pub label: Option<zpl_typst::PrinterLabel>,
+    pub auto_rotate: bool,
 }
 
 pub struct PrintCalibration {
@@ -99,16 +98,60 @@ impl Label {
         &self,
         options: &RenderOptions,
     ) -> anyhow::Result<command::CommandSequence> {
+        self.render_with_page_callback(options, |_| {}).await
+    }
+
+    pub async fn render_with_page_callback(
+        &self,
+        options: &RenderOptions,
+        mut page_calback: impl FnMut(&image::DynamicImage),
+    ) -> anyhow::Result<command::CommandSequence> {
         let mut output = CommandSequence(vec![]);
 
         for c in &self.content {
             match c {
                 LabelContent::Image { img, x, y, w, h } => {
+                    let w = self.unit_to_dots(w);
+                    let h = self.unit_to_dots(h);
+
+                    let mut img = std::borrow::Cow::Borrowed(img);
+
+                    eprintln!("Considering rotate for fit {:?}", options.auto_rotate);
+                    if options.auto_rotate && should_rotate_image(w, h, &img) {
+                        eprintln!("Rotating image for better fit");
+                        let img = img.to_mut();
+                        *img = img.rotate90();
+                    }
+
                     let img = img.resize_to_fill(
-                        self.unit_to_dots(w),
-                        self.unit_to_dots(h),
+                        w,
+                        h,
                         ::image::imageops::FilterType::Lanczos3,
                     );
+
+                    page_calback(&img);
+
+                    let img_serialized =
+                        crate::util::image::SerializedImage::new_z64(&img);
+
+                    output.push(ZplCommand::MoveOrigin(
+                        self.unit_to_dots(x),
+                        self.unit_to_dots(y),
+                    ));
+
+                    output.push(ZplCommand::RenderImage(img_serialized));
+                }
+                LabelContent::Svg { code, x, y, w, h } => {
+                    if options.auto_rotate {}
+
+                    let img = crate::util::svg::render_svg(
+                        code.to_string(),
+                        self.unit_to_dots(w),
+                        self.unit_to_dots(h),
+                        options,
+                    )?;
+
+                    page_calback(&img);
 
                     let img_serialized =
                         crate::util::image::SerializedImage::new_z64(&img);
@@ -119,29 +162,18 @@ impl Label {
                     ));
                     output.push(ZplCommand::RenderImage(img_serialized));
                 }
-                LabelContent::Svg { code, x, y, w, h } => {
-                    let img_serialized =
-                        crate::util::image::SerializedImage::from_svg(
-                            code.to_string(),
-                            self.unit_to_dots(w),
-                            self.unit_to_dots(h),
-                        )
-                        .context("Could not load SVG")?;
-
-                    output.push(ZplCommand::MoveOrigin(
-                        self.unit_to_dots(x),
-                        self.unit_to_dots(y),
-                    ));
-                    output.push(ZplCommand::RenderImage(img_serialized));
-                }
                 LabelContent::SvgTree { tree, x, y, w, h } => {
+                    let img = crate::util::svg::render_svg_tree(
+                        tree.clone(),
+                        self.unit_to_dots(w),
+                        self.unit_to_dots(h),
+                        options,
+                    )?;
+
+                    page_calback(&img);
+
                     let img_serialized =
-                        crate::util::image::SerializedImage::from_svg_tree(
-                            tree.clone(),
-                            self.unit_to_dots(w),
-                            self.unit_to_dots(h),
-                        )
-                        .context("Could not load SVG")?;
+                        crate::util::image::SerializedImage::new_z64(&img);
 
                     output.push(ZplCommand::MoveOrigin(
                         self.unit_to_dots(x),
@@ -169,9 +201,9 @@ impl Label {
 
                     let n = pages.len();
 
-                    for (i, page) in pages.iter().enumerate() {
+                    for (i, page_svg) in pages.iter().enumerate() {
                         let tree = resvg::usvg::Tree::from_str(
-                            &page,
+                            &page_svg,
                             &resvg::usvg::Options::default(),
                         )
                         .map_err(|err| {
@@ -181,13 +213,17 @@ impl Label {
                             )
                         })?;
 
+                        let img = crate::util::svg::render_svg_tree(
+                            tree,
+                            self.width * self.dpmm,
+                            self.height * self.dpmm,
+                            options,
+                        )?;
+
+                        page_calback(&img);
+
                         let img_serialized =
-                            crate::util::image::SerializedImage::from_svg_tree(
-                                tree,
-                                self.width * self.dpmm,
-                                self.height * self.dpmm,
-                            )
-                            .context("Could not render SVG")?;
+                            crate::util::image::SerializedImage::new_z64(&img);
 
                         output.push(ZplCommand::RenderImage(img_serialized));
 
@@ -256,6 +292,18 @@ impl Label {
 
         Ok(commands)
     }
+}
+
+pub fn should_rotate_image(
+    w: u32,
+    h: u32,
+    img: &::image::DynamicImage,
+) -> bool {
+    let aspect_label = f64::from(w) / f64::from(h);
+    let aspect_image = f64::from(img.width()) / f64::from(img.height());
+
+    (aspect_label - aspect_image).abs()
+        > (aspect_label - 1.0 / aspect_image).abs()
 }
 
 pub fn make_preamble() -> CommandSequence {
