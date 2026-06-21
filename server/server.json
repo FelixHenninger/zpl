@@ -59,8 +59,16 @@
 				"home_x": 2.0
 			}
 		},
-		"gx430t-virtualized": {
+		"Spectrum": {
 			"label": "20in",
+			"addr": "145.11.52.126:9100",
+			"display_name": "Spectrum",
+			"calibration": {
+				"home_x": 0.0
+			}
+		},
+		"gx430t-virtualized": {
+			"label": "200mm×99mm",
 			"addr": "0.0.0.0:0",
 			"display_name": "Virtual Printer (test)",
 			"virtualization": {

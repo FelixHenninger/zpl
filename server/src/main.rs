@@ -191,13 +191,23 @@ async fn status(State(state): State<Server>) -> String {
     serde_json::to_string(&map).unwrap()
 }
 
-#[tokio::main(flavor = "multi_thread")]
-async fn main() {
+fn main() {
+    // Tokio would steal our initialization, apart from the filter. The environment variable parsing
+    // would not be able to change any setting though.
     env_logger::Builder::default()
-        .filter(None, log::LevelFilter::Warn)
+        .filter(None, log::LevelFilter::Info)
         .parse_env(std::env::var("RUST_LOG").unwrap_or_default())
         .init();
 
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("tokio runtime failed to initialize");
+
+    rt.block_on(inner_main());
+}
+
+async fn inner_main() {
     let config = App::parse();
     let state = Server::new(config.configuration.into());
 
